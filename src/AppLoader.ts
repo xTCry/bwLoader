@@ -378,10 +378,14 @@ export default class AppLoader {
                 '\u2028',
                 '\u2029',
                 '\ufeff',
+                '\u05FF',
+                '\u0700',
             ].includes(e) || [
                 '\u2011',
                 '\u2013',
                 '\u2014',
+                '\xab',
+                '\xbb',
             ].includes(e);
 
         data = unescape(

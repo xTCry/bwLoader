@@ -59,7 +59,7 @@ export default abstract class Loader {
         this.forceDownload = forceDownload;
         this.clearCache = clearCache;
 
-        console.log(`Application loader initialized for: ${name}`);
+        console.log(`\n\n==================================\nApplication loader initialized for: ${name}`);
     }
 
     public abstract async Start();
