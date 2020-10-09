@@ -9,6 +9,17 @@ const appsPathFile = './apps.json';
 const forceGIT = false;
 
 export const configSchema = {
+    WATCHDOG: {
+        doc: 'Time in seconds for the watchdog to trigger',
+        env: 'WATCHDOG',
+        default: null,
+        format(val) {
+            // ...
+        },
+        coerce: function (val) {
+            return parseInt(val, 10);
+        },
+    },
     PATH_DOWNLOAD: {
         doc: 'The path to the downloads',
         default: 'downloaded',
@@ -118,7 +129,7 @@ export const appsSchema = {
                 default: false,
             },
             resourcePath: {
-                format (val) { },
+                format(val) {},
                 default: undefined,
             },
             wpName: {
@@ -148,14 +159,18 @@ convict.addFormat(require('convict-format-with-validator').url);
 export const config = convict(configSchema);
 export const apps = convict(appsSchema);
 
-for (const { pathFile, conv } of [
-    { pathFile: configPathFile, conv: config },
-    { pathFile: appsPathFile, conv: apps },
-]) {
-    if (!Fs.existsSync(pathFile)) {
-        console.log(`Created new config file "${pathFile}"`);
-        Fs.outputFileSync(pathFile, conv.toString());
+export const loadConfig = () => {
+    for (const { pathFile, conv } of [
+        { pathFile: configPathFile, conv: config },
+        { pathFile: appsPathFile, conv: apps },
+    ]) {
+        if (!Fs.existsSync(pathFile)) {
+            console.log(`Created new config file "${pathFile}"`);
+            Fs.outputFileSync(pathFile, conv.toString());
+        }
+        // @ts-ignore
+        conv.loadFile(pathFile).validate();
     }
-    // @ts-ignore
-    conv.loadFile(pathFile).validate();
-}
+};
+
+loadConfig();
