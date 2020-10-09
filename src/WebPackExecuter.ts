@@ -2,31 +2,32 @@ import Fs from 'fs-extra';
 import _Window from 'window';
 import safeEval from 'safe-eval';
 
-let modules = [];
-
-// The module cache
-let installedModules = {};
+/* // The module cache
+let __webpack_module_cache__ = {};
+let moduleFactories: any[] = [];
 
 // The require function
+// function s(e)
 function __webpack_require__(moduleId) {
     // Check if module is in cache
-    if (installedModules[moduleId]) {
-        return installedModules[moduleId].exports;
+    if (__webpack_module_cache__[moduleId]) {
+        return __webpack_module_cache__[moduleId].exports;
     }
 
+    // https://github.com/webpack/webpack/blob/2f2cbe50fe9274d732346e9c47c63a944a071e8a/lib/javascript/JavascriptModulesPlugin.js#L958
     // Create a new module (and put it into the cache)
-    let module = installedModules[moduleId] = {
+    let module = (__webpack_module_cache__[moduleId] = {
         i: moduleId,
         l: false,
         exports: {},
-    };
+    });
 
-    if (!modules[moduleId]) {
+    if (!moduleFactories[moduleId]) {
         throw new Error('Module by ID [' + moduleId + '] not init');
     }
 
     // Execute the module function
-    modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+    moduleFactories[moduleId].call(module.exports, module, module.exports, __webpack_require__);
     // Flag the module as loaded
     module.l = true;
 
@@ -38,6 +39,7 @@ function __webpack_require__(moduleId) {
 __webpack_require__.publicPath = '/';
 
 // compatibility get default export
+// s.n=function(e)
 __webpack_require__.compatGetDefaultExport = function (module) {
     let getter =
         module && module.__esModule
@@ -54,6 +56,7 @@ __webpack_require__.compatGetDefaultExport = function (module) {
 };
 
 // the exported property define getters function
+// s.d=function(e,r,t)
 __webpack_require__.definePropertyGetters = function (exports, key, definition) {
     if (!__webpack_require__.hasOwnProperty(exports, key))
         Object.defineProperty(exports, key, {
@@ -63,17 +66,19 @@ __webpack_require__.definePropertyGetters = function (exports, key, definition) 
 };
 
 // define __esModule on exports
+// s.r=function(e)
 __webpack_require__.makeNamespaceObject = function (exports) {
-    if(typeof Symbol !== 'undefined' && Symbol.toStringTag){
+    if (typeof Symbol !== 'undefined' && Symbol.toStringTag) {
         Object.defineProperty(exports, Symbol.toStringTag, {
             value: 'Module',
         });
-}
+    }
     Object.defineProperty(exports, '__esModule', {
         value: true,
     });
 };
 
+// s.o=function(e,r)
 __webpack_require__.hasOwnProperty = function (definition, key) {
     return Object.prototype.hasOwnProperty.call(definition, key);
 };
@@ -83,6 +88,7 @@ __webpack_require__.hasOwnProperty = function (definition, key) {
 // mode & 2: merge all properties of value into the ns
 // mode & 4: return value when already ns object
 // mode & 8|1: behave like require
+// s.t=function(r,e)
 __webpack_require__.createFakeNamespaceObject = function (value, mode) {
     if (mode & 1) value = this(value);
     if (mode & 8) return value;
@@ -110,64 +116,76 @@ __webpack_require__.createFakeNamespaceObject = function (value, mode) {
 
     return ns;
 };
-// .
+// . */
 
 export default class WebPackExecuter {
     private window: _Window;
-    private WPJ: any[];
-    private loadedModuleIDs: any;
-    private loadedModules: any[];
 
-    private WPJ_Push: typeof Array.prototype.push;
+    private moduleFactories: any[] = [];
+    private __webpack_module_cache__: any;
+    private chunkLoadingGlobal: any[];
+    private installedChunks: any;
+    private deferredModules: any[];
 
-    constructor({ modules = [], nameWPJ = 'webpackJsonp' }: { modules?: any[]; nameWPJ: string }) {
-        modules = modules || [];
-        installedModules = {};
+    private parentChunkLoadingFunction: typeof Array.prototype.push;
+
+    constructor({
+        modules = [],
+        nameWPJ: chunkLoadingGlobalExpr = 'webpackJsonp',
+    }: {
+        modules?: any[];
+        nameWPJ: string;
+    }) {
+        this.__webpack_module_cache__ = {};
+        this.installedChunks = {
+            /*  */
+        };
+        this.deferredModules = modules || [];
 
         this.window = new _Window({
             url: 'http://localhost',
         });
-        this.WPJ = this.window[nameWPJ] = this.window[nameWPJ] || [];
-        this.WPJ_Push = this.WPJ.push.bind(this.WPJ);
-        this.WPJ.push = this._push.bind(this);
 
-        this.loadedModuleIDs = {};
-        this.loadedModules = [];
+        this.chunkLoadingGlobal = this.window[chunkLoadingGlobalExpr] = this.window[chunkLoadingGlobalExpr] || [];
+        this.parentChunkLoadingFunction = this.chunkLoadingGlobal.push.bind(this.chunkLoadingGlobal);
+        this.chunkLoadingGlobal.push = this.webpackJsonpCallback.bind(this);
     }
 
-    _push(e) {
-        const moduleIDs = e[0],
-            moduleObj = e[1],
-            moduleZZHArray = e[2];
+    webpackJsonpCallback(data: any) {
+        const [chunkIds, moreModules, executeModules] = data;
 
-        let currentModuleLoad = [];
+        let resolves = [];
+        for (let i = 0; i < chunkIds.length; i++) {
+            let chunkId = chunkIds[i];
 
-        for (let idM, i = 0; i < moduleIDs.length; i++) {
-            idM = moduleIDs[i];
-
-            if (this.loadedModuleIDs[idM]) {
-                currentModuleLoad.push(this.loadedModuleIDs[idM][0]);
+            if (this.installedChunks[chunkId]) {
+                resolves.push(this.installedChunks[chunkId][0]);
             }
 
-            this.loadedModuleIDs[idM] = 0;
+            this.installedChunks[chunkId] = 0;
         }
 
-        for (let c in moduleObj) {
-            if (Object.prototype.hasOwnProperty.call(moduleObj, c)) {
-                modules[c] = moduleObj[c];
+        for (let moduleId in moreModules) {
+            if (Object.prototype.hasOwnProperty.call(moreModules, moduleId)) {
+                this.moduleFactories[moduleId] = moreModules[moduleId];
             }
         }
 
-        for (this.WPJ_Push && this.WPJ_Push(e); currentModuleLoad.length; ) {
-            currentModuleLoad.shift()();
+        this.parentChunkLoadingFunction(data);
+        while (resolves.length) {
+            resolves.shift()();
         }
 
-        this.loadedModules.push.apply(this.loadedModules, moduleZZHArray || []);
+        // add entry modules from loaded chunk to deferred list
+        if (executeModules) {
+            this.deferredModules.push.apply(this.deferredModules, executeModules || []);
+        }
 
-        // return this._CCCWP()
+        // run deferred modules when all chunks ready
+        // return this.checkDeferredModulesImpl()
     }
 
-    /* _CCCWP() {
+    /* checkDeferredModulesImpl() {
 		for (var e, c = 0; c < this.loadedModules.length; c++) {
 			let d = this.loadedModules[c],
 				f = true;
@@ -192,14 +210,11 @@ export default class WebPackExecuter {
      */
     async Include(path, file) {
         const dataFile = (await Fs.readFile(path + file)).toString();
-        const res = safeEval(dataFile, {
+        safeEval(dataFile, {
             window: {
                 ...this.window,
             },
         });
-
-        // console.log("Rest:", res)
-        // console.log("Module load:", this.window.webpackJsonp[0])
     }
 
     tryGetStaticFile() {
@@ -209,25 +224,37 @@ export default class WebPackExecuter {
 
     // If React
     tryExecuteAll() {
-        const res = modules.map((item, e) => {
-            if (installedModules[e]) {
-                return installedModules[e]; //.exports;
+        const res = this.moduleFactories.map((item, moduleId) => {
+            // Check if module is in cache
+            if (this.__webpack_module_cache__[moduleId]) {
+                return this.__webpack_module_cache__[moduleId]; //.exports;
             }
 
-            let module = installedModules[e] = {
-                i: e,
+            // Create a new module (and put it into the cache)
+            let module = (this.__webpack_module_cache__[moduleId] = {
+                i: moduleId,
                 l: false,
                 exports: {},
-            };
+            });
 
+            // Execute the module function
+            let threw = true;
             try {
-                modules[e].call(module.exports, module, module.exports, { p: '/' });
+                this.moduleFactories[moduleId].call(module.exports, module, module.exports, { p: '/' });
                 module.l = true;
+                threw = false;
             } catch (e) {
                 // console.log(e.message);
+                //
+            } finally {
+                if (threw) {
+                    delete this.__webpack_module_cache__[moduleId];
+                }
             }
 
-            return { id: e, exports: module.exports };
+            // Return the exports of the module
+            // return module.exports;
+            return { id: moduleId, exports: module.exports };
         });
 
         return res;

@@ -113,6 +113,9 @@ export default class CustomLoader extends LoaderClass {
             undefined,
             true
         );
+
+        await this.tryGetWPName();
+
         await this.loader.BeautifyAllFilesProcess('js', 'JS', resJS.filesList);
         if (resJS.ripCount > 0) console.log('Failed load [' + resJS.ripCount + '] JS files!', resJS.ripFiles);
         console.log('\n----');
@@ -120,6 +123,33 @@ export default class CustomLoader extends LoaderClass {
         const resJSmap = await this.loader.DownloadChunkProcess(this.listJS, 'js', 'JS [MAP]', true, true);
         await this.loader.UnpackAllSource('js', 'JS [MAP]', resJSmap.filesList);
         return resJS;
+    }
+
+    protected async tryGetWPName() {
+        if (this.wpName) {
+            return;
+        }
+        try {
+            const wpRegex = /.?(?:window\.(.*)) ?= ?window/i;
+            const folder_type = 'js';
+            let filesList = await Fs.readdir(this.rootPath + this.resourcePath + folder_type + '/');
+            for (let fileName of filesList) {
+                const file = this.rootPath + this.resourcePath + folder_type + '/' + fileName;
+                const codeString = (await Fs.readFile(file)).toString();
+                if (wpRegex.test(codeString)) {
+                    let { 1: wpName } = codeString.match(wpRegex);
+                    wpName = wpName.trim();
+                    if (wpName.length) {
+                        this.wpName = wpName;
+                        console.log('Found wpName: ', wpName);
+                        return;
+                    }
+                }
+
+            }
+        } catch (error) {
+            console.log('Fail: Could not extract a name.', error);
+        }
     }
 
     protected async Step_StartDownload_CSS() {
