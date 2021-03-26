@@ -1,8 +1,7 @@
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import convict from 'convict';
 import Fs from 'fs-extra';
-
-dotenv.config();
+import { parse } from 'comment-json';
 
 const configPathFile = './config.json';
 const appsPathFile = './apps.json';
@@ -156,6 +155,11 @@ convict.addFormat({
 
 convict.addFormat(require('convict-format-with-validator').url);
 
+convict.addParser({
+    parse: (str) => JSON.parse(JSON.stringify(parse(str))),
+    extension: 'json',
+});
+
 export const config = convict(configSchema);
 export const apps = convict(appsSchema);
 
@@ -168,6 +172,7 @@ export const loadConfig = () => {
             console.log(`Created new config file "${pathFile}"`);
             Fs.outputFileSync(pathFile, conv.toString());
         }
+
         // @ts-ignore
         conv.loadFile(pathFile).validate();
     }
