@@ -72,7 +72,7 @@ export default class AppLoader {
         const writer = Fs.createWriteStream(path);
         response.data.pipe(writer);
 
-        return new Promise((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
             writer.on('finish', async () => {
                 if (cbIgnore || cbReplacer) {
                     const data = (await Fs.readFile(path)).toString();
@@ -267,7 +267,7 @@ export default class AppLoader {
                             JSON.parse((await Fs.readFile(pf)).toString());
                         } catch (error) {
                             await Fs.remove(pf);
-                            console.log(pf);
+                            // console.log(pf);
                             // console.error(error);
                             throw Error('Skip file' /* "Failed MAP data" */);
                         }
@@ -277,7 +277,7 @@ export default class AppLoader {
                     filesList.push(fileName);
                     spinnerFile.color = 'green';
                 } catch (error) {
-                    if (!error || error.status === 404) {
+                    if (!error || [403, 404].includes(error.status)) {
                         blockFiles.push(element);
                         spinnerFile.color = 'red';
                     } else if (error === 'Skip file') {
