@@ -57,8 +57,10 @@ export default class AppReader {
 
         let staticName = '';
         const getMatch = (data, regex) => {
-            let [_all, _2, _3, ss, _4, _5, _6] = data.match(regex);
-            staticName = _3 || staticName;
+            let [, _2, _3, ss, _4, _5, _6] = data.match(regex);
+            if (!staticName) {
+                staticName = _3 || staticName;
+            }
             return [_4, _5 + (_6 || ''), ss];
         };
 
