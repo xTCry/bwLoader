@@ -78,7 +78,7 @@ export default class AppLoader {
                     const data = (await Fs.readFile(path)).toString();
                     if (cbIgnore && cbIgnore(data)) {
                         Fs.remove(path);
-                        return reject('Skip file');
+                        return reject(new Error('Skip file'));
                     }
 
                     if (cbReplacer) {
@@ -114,11 +114,11 @@ export default class AppLoader {
      *
      * @returns {object}
      */
-    async DownloadFilesProcess(list: any, path: string, nameT: string, force: boolean = false) {
+    async DownloadFilesProcess(list: string[], path: string, nameT: string, force: boolean = false) {
         console.log('Download ' + nameT + ' files...');
         spinnerFile.start('Download file...');
 
-        const numberOfFiles = Object.keys(list).length;
+        const numberOfFiles = list.length;
         const existFiles = await Fs.readdir(this.rootPath + path);
 
         await sleep(4);
@@ -131,7 +131,7 @@ export default class AppLoader {
             i = 0;
 
         for (const fileName of list) {
-            if (!force && existFiles.indexOf(fileName) !== -1) {
+            if (!force && existFiles.includes(fileName)) {
                 skippedCount++;
                 i++;
                 continue;
@@ -187,7 +187,7 @@ export default class AppLoader {
      * @returns {object}
      */
     public async DownloadChunkProcess(
-        list: object,
+        list: { [key: number]: string },
         folder_type: string,
         nameT: string,
         force: boolean = false,
@@ -205,93 +205,86 @@ export default class AppLoader {
 
         await sleep(3);
 
-        let downloadedCount = 0,
-            skippedCount = 0,
-            ripCount = 0,
-            filesList = [],
-            ripFiles = [],
-            i = 0,
-            blockFiles = [];
+        let downloadedCount = 0;
+        let skippedCount = 0;
+        let ripCount = 0;
+        let filesList = [];
+        let ripFiles = [];
+        let blockFiles: string[] = [];
 
-        for (const key in list) {
-            if (list.hasOwnProperty(key)) {
-                const element = list[key];
-                const fileName = key + '.' + element + '.' /* + ".chunk." */ + folder_type + (isMap ? '.map' : '');
+        let i = 0;
+        for (const fileName of Object.values(list)) {
+            const fullFileName = fileName + '.' + folder_type + (isMap ? '.map' : '');
 
-                if (
-                    !force &&
-                    (existFiles.indexOf(fileName) !== -1 || blockFiles.findIndex((e) => e.includes(element)) !== -1)
-                ) {
-                    skippedCount++;
-                    i++;
-                    continue;
-                }
+            if (!force && (existFiles.includes(fullFileName) || blockFiles.includes(fullFileName))) {
+                skippedCount++;
+                i++;
+                continue;
+            }
 
-                let msg = 'Download ' + nameT + '=> [' + gradient.pastel(fileName) + ']';
+            let msg = 'Download ' + nameT + '=> [' + gradient.pastel(fullFileName) + ']';
 
-                {
-                    spinnerFile.text = msg;
-                    spinnerFile.prefixText = gradient.vice(
-                        '[ ' + ((((i * 100) / numberOfFiles) | 0) + 1).toString().padStart(3, '0') + '% ]'
-                    );
-                }
+            {
+                spinnerFile.text = msg;
+                spinnerFile.prefixText = gradient.vice(
+                    '[ ' + ((((i * 100) / numberOfFiles) | 0) + 1).toString().padStart(3, '0') + '% ]'
+                );
+            }
 
-                const shortFilePath = folder_type + '/' + fileName;
+            const shortFilePath = folder_type + '/' + fullFileName;
+            try {
                 try {
-                    try {
+                    await this.downloadFile(
+                        this.sURL + '/' + this.resourcePath + shortFilePath,
+                        shortFilePath,
+                        void 0,
+                        cbIgnore,
+                        cbReplacer
+                    );
+                } catch (error) {
+                    if (error && error.status === 404) {
                         await this.downloadFile(
-                            this.sURL + '/' + this.resourcePath + shortFilePath,
+                            this.sURL + '/' + this.resourcePath + fullFileName,
                             shortFilePath,
                             void 0,
                             cbIgnore,
                             cbReplacer
                         );
-                    } catch (error) {
-                        if (error && error.status === 404) {
-                            await this.downloadFile(
-                                this.sURL + '/' + this.resourcePath + fileName,
-                                shortFilePath,
-                                void 0,
-                                cbIgnore,
-                                cbReplacer
-                            );
-                        } else {
-                            throw error;
-                        }
+                    } else {
+                        throw error;
                     }
-
-                    // Test correct MAP file
-                    if (isMap) {
-                        const pf = Path.resolve(this.rootPath + this.resourcePath, shortFilePath);
-                        try {
-                            JSON.parse((await Fs.readFile(pf)).toString());
-                        } catch (error) {
-                            await Fs.remove(pf);
-                            // console.log(pf);
-                            // console.error(error);
-                            throw Error('Skip file' /* "Failed MAP data" */);
-                        }
-                    }
-
-                    downloadedCount++;
-                    filesList.push(fileName);
-                    spinnerFile.color = 'green';
-                } catch (error) {
-                    if (!error || [403, 404].includes(error.status)) {
-                        blockFiles.push(element);
-                        spinnerFile.color = 'red';
-                    } else if (error === 'Skip file') {
-                        i++;
-                        spinnerFile.color = 'yellow';
-                        continue;
-                    } else console.error(error);
-
-                    ripCount++;
-                    ripFiles.push(fileName);
                 }
-                i++;
+
+                // Test correct MAP file
+                if (isMap) {
+                    const pf = Path.resolve(this.rootPath + this.resourcePath, shortFilePath);
+                    try {
+                        JSON.parse((await Fs.readFile(pf)).toString());
+                    } catch (error) {
+                        await Fs.remove(pf);
+                        throw new Error('Skip file');
+                    }
+                }
+
+                downloadedCount++;
+                filesList.push(fullFileName);
+                spinnerFile.color = 'green';
+            } catch (error) {
+                if (!error || [403, 404].includes(error.status)) {
+                    blockFiles.push(fullFileName);
+                    spinnerFile.color = 'red';
+                } else if (error.message === 'Skip file') {
+                    i++;
+                    spinnerFile.color = 'yellow';
+                    continue;
+                } else console.error(error);
+
+                ripCount++;
+                ripFiles.push(fullFileName);
             }
+            i++;
         }
+
         spinnerFile.succeed('Downloaded ' + downloadedCount + ' ' + nameT + ' files');
 
         return {
@@ -354,39 +347,34 @@ export default class AppLoader {
     public static SafeUnescapeStrings(data: string) {
         const regexp = /\\u([\d\w]{4})/gi;
         const check = (code, e) =>
-            code > 1e3 &&
-            code < 3e3 &&
-            // ((code > 1e3 && code < 3e3) || (code > 7e3 && code < 65536)) &&
-            ![
-                '\xa0',
-                '\u1680',
-                '\u180e',
-                '\u2000',
-                '\u2001',
-                '\u2002',
-                '\u2003',
-                '\u2004',
-                '\u2005',
-                '\u2006',
-                '\u2007',
-                '\u2008',
-                '\u2009',
-                '\u200a',
-                '\u202f',
-                '\u205f',
-                '\u3000',
-                '\u2028',
-                '\u2029',
-                '\ufeff',
-                '\u05FF',
-                '\u0700',
-            ].includes(e) || [
-                '\u2011',
-                '\u2013',
-                '\u2014',
-                '\xab',
-                '\xbb',
-            ].includes(e);
+            (code > 1e3 &&
+                code < 3e3 &&
+                // ((code > 1e3 && code < 3e3) || (code > 7e3 && code < 65536)) &&
+                ![
+                    '\xa0',
+                    '\u1680',
+                    '\u180e',
+                    '\u2000',
+                    '\u2001',
+                    '\u2002',
+                    '\u2003',
+                    '\u2004',
+                    '\u2005',
+                    '\u2006',
+                    '\u2007',
+                    '\u2008',
+                    '\u2009',
+                    '\u200a',
+                    '\u202f',
+                    '\u205f',
+                    '\u3000',
+                    '\u2028',
+                    '\u2029',
+                    '\ufeff',
+                    '\u05FF',
+                    '\u0700',
+                ].includes(e)) ||
+            ['\u2011', '\u2013', '\u2014', '\xab', '\xbb'].includes(e);
 
         data = unescape(
             data.replace(regexp, (match, e) => {

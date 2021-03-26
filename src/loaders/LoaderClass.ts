@@ -2,7 +2,6 @@ import AppLoader from '../AppLoader';
 import { configSchema } from '../config';
 
 export default abstract class Loader {
-    public config: typeof configSchema;
     public loader: AppLoader;
 
     public rootPath: string;
@@ -17,12 +16,10 @@ export default abstract class Loader {
     public clearCache: boolean;
 
     public staticName?: string;
-    public listJS?: any[];
-    public listCSS?: any[];
+    public listJS = {};
+    public listCSS = {};
 
-    constructor(config) {
-        this.config = config;
-    }
+    constructor(public config: typeof configSchema) {}
 
     /**
      * Функция кастомной загрузки приложенеия

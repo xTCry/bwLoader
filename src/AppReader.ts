@@ -2,11 +2,7 @@ import cheerio from 'cheerio';
 import axios from 'axios';
 
 export default class AppReader {
-    public url: string;
-
-    constructor(url: string) {
-        this.url = url;
-    }
+    constructor(public url: string) {}
 
     async start() {
         let { data: html } = await AppReader.getPage(this.url);
@@ -19,36 +15,40 @@ export default class AppReader {
             static: {
                 js: {
                     ...objJS,
-                    ...getJS,
+                    ...getJS.result,
                 },
                 css: {
                     ...objCSS,
-                    ...getCSS,
+                    ...getCSS.result,
                 },
             },
             staticName,
         };
     }
 
-    static parseResources(data) {
+    static parseResources(data: { js: { src?: string; data?: string }[]; css: { href: string }[] }) {
         // Get chunks
         let fdata: string = data.js
             .filter((e) => e.hasOwnProperty('data'))
-            .map((e: { data: string }) => e.data)
+            .map((e) => e.data)
             .filter((e) => e.includes('window.webpackJsonp') || (e.includes('webpackJsonp') && e.includes('chunk')))[0];
 
-        // Поиск чанков (loadable)
-        const getCSSdata =
-            fdata && fdata.match(/("static\/css\/"\+\({}\[(.*)\]\|\|(.*)\)\+"\."\+{)(.*)(}\[(.*)\]\+"\.chunk\.css")/i);
-        const getCSS = getCSSdata && getCSSdata.length > 0 ? AppReader.extactStrToObject(getCSSdata[4], '.chunk') : {};
+        const regexChunkTemplate = (type) =>
+            new RegExp(
+                `("static\\/${type}\\/"\\+\\({(?<names>.*)}\\[(.*)\\]\\|\\|(.*)\\)\\+"\\."\\+{)(?<hashes>.*)(}\\[(.*)\\]\\+"\\.chunk\\.${type}")`,
+                'i'
+            );
 
-        const getJSdata =
-            fdata && fdata.match(/("static\/js\/"\+\({}\[(.*)\]\|\|(.*)\)\+"\."\+{)(.*)(}\[(.*)\]\+"\.chunk\.js")/i);
-        const getJS = getJSdata && getJSdata.length > 0 ? AppReader.extactStrToObject(getJSdata[4], '.chunk') : {};
+        // Поиск чанков (loadable)
+        const getCSSdata = fdata?.match(regexChunkTemplate('css'))?.groups || {};
+        const getJSdata = fdata?.match(regexChunkTemplate('js'))?.groups || {};
+
+        const getCSS = AppReader.extactStrToObject(getCSSdata, '.chunk');
+        const getJS = AppReader.extactStrToObject(getJSdata, '.chunk');
 
         const regexTemplate = (type) =>
             new RegExp(
-                `(\\.\\/)?(static)?(\\/${type}\\/)?([A-b0-9\\-]+)[\\.-]([A-b0-9\\-]+)(\\.chunk)?\\.${type}`,
+                `(\\.\\/)?(?<_static>[a-z]+)?(\\/${type}\\/)?(?<code>[A-b0-9\\-]+)[\\.-](?<name>[A-b0-9\\-]+(\\.chunk)?)\\.${type}`,
                 'i'
             );
 
@@ -56,51 +56,26 @@ export default class AppReader {
         const regexCSS = regexTemplate('css');
 
         let staticName = '';
-        const getMatch = (data, regex) => {
-            let [, _2, _3, ss, _4, _5, _6] = data.match(regex);
-            if (!staticName) {
-                staticName = _3 || staticName;
-            }
-            return [_4, _5 + (_6 || ''), ss];
+        const getMatch = (data: string, regex) => {
+            let { _static, code, name } = data.match(regex)?.groups;
+            staticName = staticName || _static;
+            return { code, name, _static };
         };
 
         // Get chunks
-        let strJS = data.js
-            .filter((e) => e.hasOwnProperty('src') && staticName)
-            .filter((e: { src: string }) => !e.src.includes('://'))
-            .map((e: { src: string }) => getMatch(e.src, regexJS))
-            .filter((e) => !e[2] || staticName)
-            .map((q) => '"' + q[0] + '":"' + q[1] + '"')
-            .join(',');
+        const objJS = data.js
+            .filter((e) => e.hasOwnProperty('src'))
+            .filter(({ src }) => regexJS.test(src) && !src.includes('://'))
+            .map(({ src }) => getMatch(src, regexJS))
+            .filter((e) => !e._static || staticName)
+            .reduce((prev, { code, name }) => ({ ...prev, [code]: `${code}.${name}` }), {});
 
-        let strCSS = data.css
-            .filter((e) => e.hasOwnProperty('href') && regexCSS.test(e.href))
-            .filter((e) => e.href && !e.href.includes('://'))
-            .map((e) => getMatch(e.href, regexCSS))
-            .filter((e) => !e[2] || staticName)
-            .map((q) => '"' + q[0] + '":"' + q[1] + '"')
-            .join(',');
-
-        if (!strJS) {
-            strJS = data.js
-                .filter((e: { src: string }) => e.hasOwnProperty('src') && regexJS.test(e.src))
-                .map((e: { src: string }) => getMatch(e.src, regexJS))
-                .filter((e) => e[2])
-                .map((q) => '"' + q[0] + '":"' + q[1] + '"')
-                .join(',');
-        }
-
-        if (!strCSS) {
-            strCSS = data.css
-                .filter((e) => e.hasOwnProperty('href') && regexCSS.test(e.href))
-                .map((e) => getMatch(e.href, regexCSS))
-                .filter((e) => e[2])
-                .map((q) => '"' + q[0] + '":"' + q[1] + '"')
-                .join(',');
-        }
-
-        let objJS = JSON.parse('{' + strJS + '}');
-        let objCSS = JSON.parse('{' + strCSS + '}');
+        const objCSS = data.css
+            .filter((e) => e.hasOwnProperty('href'))
+            .filter(({ href }) => regexCSS.test(href) && !href.includes('://'))
+            .map(({ href }) => getMatch(href, regexCSS))
+            .filter((e) => !e._static || staticName)
+            .reduce((prev, { code, name }) => ({ ...prev, [code]: `${code}.${name}` }), {});
 
         return {
             objJS,
@@ -115,7 +90,7 @@ export default class AppReader {
         let response = undefined;
         try {
             response = axios(url, {
-                timeout: 3e3,
+                timeout: 5e3,
             });
         } catch (error) {
             console.error(error);
@@ -123,7 +98,7 @@ export default class AppReader {
         return response;
     }
 
-    static getResources(data): { js: Array<{ src: string } | { data: string }>; css: Array<{ href: string }> } {
+    static getResources(data): { js: ({ src: string } | { data: string })[]; css: { href: string }[] } {
         const $ = cheerio.load(data);
         let output = {
             js: [],
@@ -165,17 +140,31 @@ export default class AppReader {
         return output;
     }
 
-    static extactStrToObject(data: string, additionalPostfix?: string): object {
-        let z = {};
-        let elems = data.split(',');
-        for (const el of elems) {
-            let q = el.split(':');
-            z = {
-                ...z,
-                [q[0]]: q[1].replace(/['"]+/g, '') + (additionalPostfix || ''),
-            };
-        }
-        return z;
+    static extactStrToObject({ names: strNames = '', hashes: strHashes = '' }, additionalPostfix: string = '') {
+        strNames = strNames.replace(/['"]+/g, '');
+        strHashes = strHashes.replace(/['"]+/g, '');
+
+        const names = strNames
+            .split(',')
+            .filter(Boolean)
+            .reduce((prev, el) => {
+                const [code, name] = el.split(':');
+                return { ...prev, [code]: name };
+            }, {});
+
+        const hashes = strHashes
+            .split(',')
+            .filter(Boolean)
+            .reduce((prev, el) => {
+                const [code, name] = el.split(':');
+                return { ...prev, [code]: name };
+            }, {});
+
+        const result = Object.entries(hashes).reduce((prev, [code, name]) => {
+            return { ...prev, [code]: `${names[code] || code}.${name}${additionalPostfix}` };
+        }, {});
+
+        return { names, hashes, result };
     }
 }
 
