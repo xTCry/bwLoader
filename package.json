@@ -1,6 +1,6 @@
 {
   "name": "bw-loader",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "index.js",
   "repository": "https://github.com/xTCry/bwLoader",
   "author": "xTCry [Vladislav Kh] (https://github.com/xTCry/)",
