@@ -94,7 +94,7 @@ export default class ToGIT {
         this.useOnlyLocal =
             useOnlyLocal || !this.config.GIT_URI || /* !this.config.GIT_PASSWD ||  */ !this.config.GIT_TOKEN;
 
-        if (!Fs.existsSync(path)) await Fs.mkdirp(path);
+        await Fs.ensureDir(path);
 
         this.git = gitP(path);
         const reposIsset = await this.checkIsRepo(!isSubGit);

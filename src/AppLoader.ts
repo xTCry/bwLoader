@@ -548,13 +548,13 @@ export default class AppLoader {
      */
     public async CacheToGit(outGitPath: string, renameInData: boolean = true, jsNicer: boolean = false) {
         const staticFolders = ['js', 'css', 'media'];
-        const outPaths = staticFolders.map((el) => outGitPath + this.resourcePath + el);
+        const outPaths = staticFolders.map((el) => Path.resolve(outGitPath, this.resourcePath, el));
 
         // Cleaning
         const existOutFiles = await Fs.readdir(outGitPath);
         for (const fileName of existOutFiles) {
             if (!fileName.startsWith('.git') && fileName !== 'unpack') {
-                await Fs.remove(outGitPath + fileName);
+                await Fs.remove(Path.resolve(outGitPath, fileName));
             }
         }
 
@@ -678,22 +678,19 @@ export default class AppLoader {
         return true;
     }
 
-    public async CopySourceToGit(outGitPath: string) {
-        const sourcePath = Path.resolve(this.rootPath, '_safe');
-        const sourceNewPath = Path.resolve(outGitPath, 'unpack');
-
+    public async CopyFolderToGit(sourcePath: string, destPath: string) {
         const issetPath = Fs.existsSync(sourcePath);
-        const issetNewPath = Fs.existsSync(sourceNewPath);
+        const issetDestPath = Fs.existsSync(destPath);
 
-        if (issetNewPath) {
-            await Fs.remove(sourceNewPath);
+        if (issetDestPath) {
+            await Fs.remove(destPath);
         }
 
         if (issetPath) {
-            await Fs.copy(sourcePath, sourceNewPath);
+            await Fs.copy(sourcePath, destPath);
         }
 
-        return issetNewPath || issetPath;
+        return issetDestPath || issetPath;
     }
 
     /**

@@ -191,41 +191,59 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_ToGit() {
+        const gitPath = Path.resolve(this.rootPath, '../togit/');
         const tg = new ToGit(this.config.GIT as xConfig<typeof configSchema.GIT>);
         let isGIT = await tg.init({
-            path: Path.resolve(this.rootPath, '../togit/'),
+            path: gitPath,
             name: this.name,
             silent: false,
             isSubGit: true,
             ignoreNodeModules: true,
             useOnlyLocal: !this.togit,
         });
+        let diffs;
 
         if (isGIT !== true) {
             tg.log('Failed use it.');
             return;
         }
 
-        let comName = ComName();
-        let changedFiles = 0;
+        let commitName = ComName();
+        
+        // Cleaning
+        const existGitFiles = await Fs.readdir(gitPath);
+        for (const fileName of existGitFiles) {
+            if (!fileName.startsWith('.git') && !['public', 'source', 'info.json'].includes(fileName)) {
+                await Fs.remove(Path.resolve(gitPath, fileName));
+            }
+        }
 
-        let issetSource = await this.loader.CopySourceToGit(this.rootPath + '../togit/');
+        diffs = await tg.diff();
+        if (diffs.changed > 0) {
+            tg.log('(🧹-CLEANING) Diff result:', diffs.text);
+            await tg.commit(`chore(🧹): clean up old files [${commitName}]`);
+        }
+
+        // Create info.json
+        await Fs.writeFile(Path.resolve(gitPath, 'info.json'), JSON.stringify({ name: this.name, url: this.url }, null, 2));
+
+        await Fs.ensureDir(Path.resolve(gitPath, 'public'));
+        await this.loader.CacheToGit(Path.resolve(gitPath, 'public'));
+
+        diffs = await tg.diff();
+        tg.log('(🍊-PUBLIC) Diff result:', diffs.text);
+        await tg.commit(`feat(🍊): public up [${commitName}]`);
+
+        let issetSource = await this.loader.CopyFolderToGit(
+            Path.resolve(this.rootPath, '_safe'),
+            Path.resolve(gitPath, 'unpack')
+        );
         if (issetSource) {
-            let diffs = await tg.diff();
-            changedFiles += diffs.changed;
-            tg.log('(SOURCE) Diff result:', diffs.text);
-            await tg.commit(`(SOURCE) Hellow [${comName}]`);
+            diffs = await tg.diff();
+            tg.log('(🍏-SOURCE) Diff result:', diffs.text);
+            await tg.commit(`feat(🍏): source up [${commitName}]`);
         }
 
-        await this.loader.CacheToGit(this.rootPath + '../togit/');
-        let diffs = await tg.diff();
-        changedFiles += diffs.changed;
-        tg.log('(STATIC) Diff result:', diffs.text);
-        await tg.commit(`(STATIC) Hellow [${comName}]`);
-
-        if (diffs.changed) {
-            tg.log(`Commits name: [${comName}]`);
-        }
         await tg.push();
     }
 }
