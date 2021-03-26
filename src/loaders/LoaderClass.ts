@@ -62,10 +62,10 @@ export default abstract class Loader {
         console.log(`\n\n==================================\nApplication loader initialized for: ${name}`);
     }
 
-    public abstract async Start();
-    protected abstract async Step_LoadApp();
-    protected abstract async Step_InitAppLoader();
-    protected abstract async Step_PrepareArea();
-    protected abstract async Step_StartDownload();
-    protected abstract async Step_ToGit();
+    public abstract Start(): Promise<any>;
+    protected abstract Step_LoadApp(): Promise<any>;
+    protected abstract Step_InitAppLoader(): Promise<any>;
+    protected abstract Step_PrepareArea(): Promise<any>;
+    protected abstract Step_StartDownload(): Promise<{ resJS: any }>;
+    protected abstract Step_ToGit(): Promise<any>;
 }
