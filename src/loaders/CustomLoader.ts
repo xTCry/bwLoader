@@ -130,7 +130,11 @@ export default class CustomLoader extends LoaderClass {
             return;
         }
         try {
-            const wpRegex = /.?(?:window\.(.*)) ?= ?window/i;
+            // const wpRegex = /.?(?:window\.(.*)) ?= ?window/i;
+            // const wpRegex = /.?(?:(this|window)\.(.*)) ?= ?(this|window)\.(.*)\|\|\[\]/i;
+            const regWPName = (e = '') => `(this|window)(\\.|\\[")(?<wpName${e}>.*)("\\])?`;
+            const wpRegex = new RegExp(`.?(${regWPName()}) ?= ?(${regWPName('2')}) ?\\|\\| ?\\[\\]`, 'i');
+
             const folder_type = 'js';
             let filesList = await Fs.readdir(this.rootPath + this.resourcePath + folder_type + '/');
             for (let fileName of filesList) {
@@ -139,7 +143,7 @@ export default class CustomLoader extends LoaderClass {
                 if (wpRegex.test(codeString)) {
                     let { 1: wpName } = codeString.match(wpRegex);
                     wpName = wpName.trim();
-                    if (wpName.length) {
+                    if (wpName.length < 100) {
                         this.wpName = wpName;
                         console.log('Found wpName: ', wpName);
                         return;
