@@ -208,7 +208,10 @@ export default class CustomLoader extends LoaderClass {
         // Cleaning
         const existGitFiles = await Fs.readdir(gitPath);
         for (const fileName of existGitFiles) {
-            if (!fileName.startsWith('.git') && !['public', 'source', 'info.json'].includes(fileName)) {
+            if (
+                !fileName.startsWith('.git') &&
+                !['public', 'source', 'unpack', 'README.md', 'info.json'].includes(fileName)
+            ) {
                 await Fs.remove(Path.resolve(gitPath, fileName));
             }
         }
