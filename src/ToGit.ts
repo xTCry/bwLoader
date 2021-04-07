@@ -29,7 +29,7 @@ class GiteaAPI {
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    Authorization: 'bearer ' + this.config.GIT_TOKEN,
+                    Authorization: `bearer ${this.config.GIT_TOKEN}`,
                 },
                 data,
                 responseType: 'json',
@@ -197,7 +197,7 @@ export default class ToGIT {
     }
 
     public async createRepo(name: string = 'Test-API-repos') {
-        const sub = this.config.GIT_ORG.length > 0 ? 'org/' + this.config.GIT_ORG : 'user';
+        const sub = this.config.GIT_ORG.length > 0 ? `org/${this.config.GIT_ORG}` : 'user';
         const res = await this.api.post(sub + '/repos', {
             name,
             // description: "",

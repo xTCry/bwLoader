@@ -128,7 +128,7 @@ export default class CustomLoader extends LoaderClass {
         await this.tryGetWPName();
 
         await this.loader.BeautifyAllFilesProcess('js', 'JS', resJS.filesList);
-        if (resJS.ripCount > 0) console.log('Failed load [' + resJS.ripCount + '] JS files!', resJS.ripFiles);
+        if (resJS.ripCount > 0) console.log(`Failed load [${resJS.ripCount}] JS files!`, resJS.ripFiles);
         console.log('\n----');
 
         const resJSmap = await this.loader.DownloadChunkProcess(this.listJS, 'js', 'JS [MAP]', true, true);
@@ -149,7 +149,7 @@ export default class CustomLoader extends LoaderClass {
             const folder_type = 'js';
             let filesList = await Fs.readdir(this.rootPath + this.resourcePath + folder_type + '/');
             for (let fileName of filesList) {
-                const file = this.rootPath + this.resourcePath + folder_type + '/' + fileName;
+                const file = `${this.rootPath + this.resourcePath + folder_type}/${fileName}`;
                 const codeString = (await Fs.readFile(file)).toString();
                 if (wpRegex.test(codeString)) {
                     let { 1: wpName } = codeString.match(wpRegex);
@@ -172,7 +172,7 @@ export default class CustomLoader extends LoaderClass {
         // WORK [CSS]
         const resCSS = await this.loader.DownloadChunkProcess(this.listCSS, 'css', 'CSS', this.forceDownload);
         await this.loader.BeautifyAllFilesProcess('css', 'CSS', resCSS.filesList);
-        if (resCSS.ripCount > 0) console.log('Failed load [' + resCSS.ripCount + '] CSS files!');
+        if (resCSS.ripCount > 0) console.log(`Failed load [${resCSS.ripCount}] CSS files!`);
         console.log('\n----');
 
         const resCSSmap = await this.loader.DownloadChunkProcess(this.listCSS, 'css', 'CSS [MAP]', true, true);
@@ -182,15 +182,23 @@ export default class CustomLoader extends LoaderClass {
     protected async Step_StartDownload_Media(resJS) {
         STEP_ASK && await Readline.question(`[Step_StartDownload_Media] Press [Enter] to continue...`);
 
+        const { exports: exportedModules, mediaFiles } = await this.loader.ExportModulesFiles(
+            resJS.filesList,
+            this.wpName,
+            80
+        );
 
-        // Downloading media files
-        const listMedia = exportedModules
+        let listMedia = exportedModules
             .filter(
                 ({ exports }) =>
                     exports.startsWith(`${this.staticName}/media/`) || exports.startsWith(`/${this.staticName}/media/`)
             )
             .map(({ exports }) => Path.basename(exports));
 
+        listMedia.push(...mediaFiles);
+        listMedia = listMedia.filter((val, i, self) => self.indexOf(val) === i);
+
+        // Downloading media files
         const resMedia = await this.loader.DownloadFilesProcess(
             listMedia,
             `${this.staticName}/media`,
@@ -198,7 +206,7 @@ export default class CustomLoader extends LoaderClass {
             this.forceDownload
         );
         if (resMedia.ripCount > 0) {
-            console.log('Failed load [' + resMedia.ripCount + '] Media files!', resMedia.ripFiles);
+            console.log(`Failed load [${resMedia.ripCount}] Media files!`, resMedia.ripFiles);
         }
         // ...
     }

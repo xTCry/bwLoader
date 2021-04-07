@@ -121,7 +121,7 @@ export default class AppLoader {
      * @returns {object}
      */
     async DownloadFilesProcess(list: string[], path: string, nameT: string, force: boolean = false) {
-        console.log('Download ' + nameT + ' files...');
+        console.log(`Download ${nameT} files...`);
         spinnerFile.start('Download file...');
 
         const numberOfFiles = list.length;
@@ -147,19 +147,19 @@ export default class AppLoader {
             {
                 spinnerFile.text = msg;
                 spinnerFile.prefixText = gradient.vice(
-                    '[ ' + ((((i * 100) / numberOfFiles) | 0) + 1).toString().padStart(3, '0') + '% ]'
+                    `[ ${((((i * 100) / numberOfFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
                 );
             }
 
             try {
-                await this.downloadFile(this.sURL + '/' + path + '/' + fileName, path + '/' + fileName, this.rootPath);
+                await this.downloadFile(`${this.sURL}/${path}/${fileName}`, `${path}/${fileName}`, this.rootPath);
                 downloadedCount++;
                 filesList.push(fileName);
                 spinnerFile.color = 'green';
             } catch (e) {
                 // if (e && e.status == 404) {
                 ripCount++;
-                ripFiles.push([this.sURL + '/' + path + '/' + fileName, fileName]);
+                ripFiles.push([`${this.sURL}/${path}/${fileName}`, fileName]);
                 // } else if(e) console.error(e)
                 spinnerFile.color = 'red';
             }
@@ -201,7 +201,7 @@ export default class AppLoader {
         cbIgnore: Function = undefined,
         cbReplacer: Function | boolean = undefined
     ) {
-        console.log('Download ' + nameT + ' files...');
+        console.log(`Download ${nameT} files...`);
 
         spinnerFile.start('Download file...');
 
@@ -220,7 +220,7 @@ export default class AppLoader {
 
         let i = 0;
         for (const fileName of Object.values(list)) {
-            const fullFileName = fileName + '.' + folder_type + (isMap ? '.map' : '');
+            const fullFileName = `${fileName}.${folder_type}${isMap ? '.map' : ''}`;
 
             if (!force && (existFiles.includes(fullFileName) || blockFiles.includes(fullFileName))) {
                 skippedCount++;
@@ -228,20 +228,20 @@ export default class AppLoader {
                 continue;
             }
 
-            let msg = 'Download ' + nameT + '=> [' + gradient.pastel(fullFileName) + ']';
+            let msg = `Download ${nameT}=> [${gradient.pastel(fullFileName)}]`;
 
             {
                 spinnerFile.text = msg;
                 spinnerFile.prefixText = gradient.vice(
-                    '[ ' + ((((i * 100) / numberOfFiles) | 0) + 1).toString().padStart(3, '0') + '% ]'
+                    `[ ${((((i * 100) / numberOfFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
                 );
             }
 
-            const shortFilePath = folder_type + '/' + fullFileName;
+            const shortFilePath = `${folder_type}/${fullFileName}`;
             try {
                 try {
                     await this.downloadFile(
-                        this.sURL + '/' + this.resourcePath + shortFilePath,
+                        `${this.sURL}/${this.resourcePath}${shortFilePath}`,
                         shortFilePath,
                         void 0,
                         cbIgnore,
@@ -250,7 +250,7 @@ export default class AppLoader {
                 } catch (error) {
                     if (error && error.status === 404) {
                         await this.downloadFile(
-                            this.sURL + '/' + this.resourcePath + fullFileName,
+                            `${this.sURL}/${this.resourcePath}${fullFileName}`,
                             shortFilePath,
                             void 0,
                             cbIgnore,
@@ -292,7 +292,7 @@ export default class AppLoader {
             i++;
         }
 
-        spinnerFile.succeed('Downloaded ' + downloadedCount + ' ' + nameT + ' files');
+        spinnerFile.succeed(`Downloaded ${downloadedCount} ${nameT} files`);
 
         return {
             downloadedCount,
@@ -311,7 +311,7 @@ export default class AppLoader {
      * @param files Number of files or files list
      */
     public async BeautifyAllFilesProcess(folder_type: string, nameT: string, files: number | string[]) {
-        console.log('Beautifly ' + nameT + ' files...');
+        console.log(`Beautifly ${nameT} files...`);
 
         spinnerBeautify.start('Load file..');
 
@@ -323,16 +323,16 @@ export default class AppLoader {
         const numberFiles = (Array.isArray(files) && files.length) || filesList.length;
 
         for (const _file of filesList) {
-            const file = this.rootPath + this.resourcePath + folder_type + '/' + _file;
+            const file = `${this.rootPath + this.resourcePath + folder_type}/${_file}`;
             const beautifyCodeResult = (await Fs.readFile(file)).toString();
 
             {
-                let msg = 'Beautify ' + nameT + ' ' + gradient.pastel(_file);
+                let msg = `Beautify ${nameT} ${gradient.pastel(_file)}`;
 
                 spinnerBeautify.color = 'green';
                 spinnerBeautify.text = msg;
                 spinnerBeautify.prefixText = gradient.vice(
-                    '[ ' + ((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0') + '% ]'
+                    `[ ${((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
                 );
             }
 
@@ -348,7 +348,7 @@ export default class AppLoader {
             await Fs.writeFile(file, data);
             i++;
         }
-        spinnerBeautify.succeed('All ' + filesList.length + ' files beautify');
+        spinnerBeautify.succeed(`All ${filesList.length} files beautify`);
     }
 
     public static SafeUnescapeStrings(data: string) {
@@ -407,7 +407,7 @@ export default class AppLoader {
         filter: string = undefined,
         split: string = undefined
     ) {
-        console.log('Unpack ' + nameT + ' files...');
+        console.log(`Unpack ${nameT} files...`);
 
         spinnerBeautify.start('Try unpack file..');
         spinnerBeautify.prefixText = gradient.vice('[ 0% ]');
@@ -422,15 +422,15 @@ export default class AppLoader {
         const pathTo = this.rootPath + '_safe/source/src/';
 
         for (const _file of filesList) {
-            const file = this.rootPath + this.resourcePath + folder_type + '/' + _file;
+            const file = `${this.rootPath + this.resourcePath + folder_type}/${_file}`;
 
             {
-                let msg = 'Unpack ' + nameT + ' ' + gradient.pastel(_file);
+                let msg = `Unpack ${nameT} ${gradient.pastel(_file)}`;
 
                 spinnerBeautify.color = 'green';
                 spinnerBeautify.text = msg;
                 spinnerBeautify.prefixText = gradient.vice(
-                    '[ ' + ((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0') + '% ]'
+                    `[ ${((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
                 );
             }
 
@@ -439,7 +439,7 @@ export default class AppLoader {
         }
 
         spinnerBeautify.prefixText = gradient.vice('[ 100% ]');
-        spinnerBeautify.succeed('All ' + filesList.length + ' files unpacked');
+        spinnerBeautify.succeed(`All ${filesList.length} files unpacked`);
     }
 
     /**
@@ -572,7 +572,7 @@ export default class AppLoader {
             const numberFiles = filesList.length;
             let i = 0;
 
-            spinnerBeautify.start('Renaming [' + folder_type.toUpperCase() + '] files...');
+            spinnerBeautify.start(`Renaming [${folder_type.toUpperCase()}] files...`);
             spinnerBeautify.prefixText = gradient.vice('[ 0% ]');
 
             for (const _file of filesList) {
@@ -583,12 +583,12 @@ export default class AppLoader {
                 const newFilePath = Path.resolve(outPath, newName);
 
                 {
-                    let msg = 'Rename ' + gradient.pastel(_file) + ' to => ' + gradient.vice(newName);
+                    let msg = `Rename ${gradient.pastel(_file)} to => ${gradient.vice(newName)}`;
 
                     spinnerBeautify.color = 'green';
                     spinnerBeautify.text = msg;
                     spinnerBeautify.prefixText = gradient.vice(
-                        '[ ' + ((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0') + '% ]'
+                        `[ ${((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
                     );
                 }
 
@@ -597,12 +597,12 @@ export default class AppLoader {
 
                 if (k < 2) {
                     newPathsFiles.push(newFilePath);
-                    await Fs.appendFile(newFilePath, '\n/* ' + oldCache + ' */');
+                    await Fs.appendFile(newFilePath, `\n/* ${oldCache} */`);
                 }
             }
 
             spinnerBeautify.prefixText = gradient.vice('[ 100% ]');
-            spinnerBeautify.succeed('All ' + numberFiles + ' [' + folder_type.toUpperCase() + '] files renamed');
+            spinnerBeautify.succeed(`All ${numberFiles} [${folder_type.toUpperCase()}] files renamed`);
         }
 
         await sleep(1);
@@ -638,12 +638,12 @@ export default class AppLoader {
 
             for (const _filePath of newPathsFiles) {
                 {
-                    let msg = 'Rename in => ' + gradient.vice(_filePath);
+                    let msg = `Rename in => ${gradient.vice(_filePath)}`;
 
                     spinnerBeautify.color = 'green';
                     spinnerBeautify.text = msg;
                     spinnerBeautify.prefixText = gradient.vice(
-                        '[ ' + ((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0') + '% ]'
+                        `[ ${((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
                     );
                 }
 
@@ -669,7 +669,7 @@ export default class AppLoader {
             }
 
             spinnerBeautify.prefixText = gradient.vice('[ 100% ]');
-            spinnerBeautify.succeed('All data in ' + (1 + numberFiles) + ' files renamed');
+            spinnerBeautify.succeed(`All data in ${1 + numberFiles} files renamed`);
         }
 
         return true;
