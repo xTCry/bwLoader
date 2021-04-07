@@ -9,6 +9,9 @@ import LoaderClass from './LoaderClass';
 import { getMe } from '../AppReader';
 import AppLoader from '../AppLoader';
 import ToGit from '../ToGit';
+import Readline from '../readline';
+
+const STEP_ASK = true;
 
 export default class CustomLoader extends LoaderClass {
     public async Start() {
@@ -23,6 +26,8 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_LoadApp() {
+        STEP_ASK && await Readline.question(`[Step_LoadApp] Press [Enter] to continue...`);
+
         // Load site modules
         const appDataS = await getMe(this.url);
         let {
@@ -40,6 +45,8 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_InitAppLoader() {
+        STEP_ASK && await Readline.question(`[Step_InitAppLoader] Press [Enter] to continue...`);
+
         let dURL = this.url;
 
         if (dURL.includes('index.html')) {
@@ -51,6 +58,8 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_PrepareArea() {
+        STEP_ASK && await Readline.question(`[Step_PrepareArea] Press [Enter] to continue...`);
+
         // Cleaning
         const existOldFiles = await Fs.readdir(this.rootPath);
         for (const fileName of existOldFiles) {
@@ -72,6 +81,8 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_StartDownload() {
+        STEP_ASK && await Readline.question(`[Step_StartDownload] Press [Enter] to continue...`);
+
         await this.Step_StartDownload_Index();
         const resJS = await this.Step_StartDownload_JS();
         await this.Step_StartDownload_CSS();
@@ -79,6 +90,8 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_StartDownload_Index() {
+        STEP_ASK && await Readline.question(`[Step_StartDownload_Index] Press [Enter] to continue...`);
+
         let dURL = this.url.includes('index.html') ? this.url.slice(0, this.url.indexOf('index.html')) : this.url;
 
         try {
@@ -93,12 +106,14 @@ export default class CustomLoader extends LoaderClass {
             });
             await Fs.writeFile(path, data);
         } catch (e) {
-            console.log('Failed to load index.html');
+            console.log('Failed to load index.html', e.message);
             // console.error(e);
         }
     }
 
     protected async Step_StartDownload_JS() {
+        STEP_ASK && await Readline.question(`[Step_StartDownload_JS] Press [Enter] to continue...`);
+
         // WORK [JS]
         const resJS = await this.loader.DownloadChunkProcess(
             this.listJS,
@@ -152,6 +167,8 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_StartDownload_CSS() {
+        STEP_ASK && await Readline.question(`[Step_StartDownload_CSS] Press [Enter] to continue...`);
+
         // WORK [CSS]
         const resCSS = await this.loader.DownloadChunkProcess(this.listCSS, 'css', 'CSS', this.forceDownload);
         await this.loader.BeautifyAllFilesProcess('css', 'CSS', resCSS.filesList);
@@ -163,7 +180,8 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_StartDownload_Media(resJS) {
-        const exportedModules = await this.loader.ExportModulesFiles(resJS.filesList, this.wpName, 80);
+        STEP_ASK && await Readline.question(`[Step_StartDownload_Media] Press [Enter] to continue...`);
+
 
         // Downloading media files
         const listMedia = exportedModules
@@ -179,13 +197,15 @@ export default class CustomLoader extends LoaderClass {
             'Media',
             this.forceDownload
         );
-        if (resMedia.ripCount > 0)
+        if (resMedia.ripCount > 0) {
             console.log('Failed load [' + resMedia.ripCount + '] Media files!', resMedia.ripFiles);
-
+        }
         // ...
     }
 
     protected async Step_ToGit() {
+        STEP_ASK && await Readline.question(`[Step_ToGit#Start] Press [Enter] to continue...`);
+
         const gitPath = Path.resolve(this.rootPath, '../togit/');
         const tg = new ToGit(this.config.GIT as xConfig<typeof configSchema.GIT>);
         let isGIT = await tg.init({
@@ -219,9 +239,11 @@ export default class CustomLoader extends LoaderClass {
         diffs = await tg.diff();
         if (diffs.changed > 0) {
             tg.log('(🧹-CLEANING) Diff result:', diffs.text);
+            STEP_ASK && await Readline.question(`[Step_ToGit#CommitCLEANING] Press [Enter] to continue...`);
             await tg.commit(`chore(🧹): clean up old files [${commitName}]`);
         }
 
+        STEP_ASK && await Readline.question(`[Step_ToGit#CreateInfos] Press [Enter] to continue...`);
         // Create info.json
         await Fs.writeFile(
             Path.resolve(gitPath, 'info.json'),
@@ -232,11 +254,13 @@ export default class CustomLoader extends LoaderClass {
             `# bwLoader - ${this.name}\n\n> URL: ${this.url}\n\nThis repository is automatically generated by [@xTCry/bwLoader](https://github.com/xTCry/bwLoader)`
         );
 
+        STEP_ASK && await Readline.question(`[Step_ToGit#CacheToGit] Press [Enter] to continue...`);
         await Fs.ensureDir(Path.resolve(gitPath, 'public'));
         await this.loader.CacheToGit(Path.resolve(gitPath, 'public'));
 
         diffs = await tg.diff();
         tg.log('(🍊-PUBLIC) Diff result:', diffs.text);
+        STEP_ASK && await Readline.question(`[Step_ToGit#CommitPUBLIC] Press [Enter] to continue...`);
         await tg.commit(`feat(🍊): public up [${commitName}]`);
 
         let issetSource = await this.loader.CopyFolderToGit(
@@ -246,9 +270,12 @@ export default class CustomLoader extends LoaderClass {
         if (issetSource) {
             diffs = await tg.diff();
             tg.log('(🍏-SOURCE) Diff result:', diffs.text);
+            STEP_ASK && await Readline.question(`[Step_ToGit#CommitSOURCE] Press [Enter] to continue...`);
             await tg.commit(`feat(🍏): source up [${commitName}]`);
         }
 
+        STEP_ASK && await Readline.question(`[Step_ToGit#Push] Press [Enter] to continue...`);
+        !STEP_ASK && await Readline.question(`[GIT] Press [Enter] to push...`);
         await tg.push();
     }
 }
