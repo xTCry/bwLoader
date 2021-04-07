@@ -1,5 +1,6 @@
 import cheerio from 'cheerio';
 import axios from 'axios';
+import { sleep } from './tools';
 
 export default class AppReader {
     constructor(public url: string) {}
@@ -88,11 +89,23 @@ export default class AppReader {
 
     static async getPage(url) {
         let response = undefined;
+        let attemptsCount = 3;
         try {
-            response = axios(url, {
-                timeout: 10e3,
-                maxRedirects: 10,
-            });
+            do {
+                try {
+                    response = axios(url, {
+                        timeout: 10e3,
+                        maxRedirects: 10,
+                    });
+                    attemptsCount = 0;
+                } catch (err) {
+                    --attemptsCount;
+                    if (attemptsCount === 0) {
+                        throw err;
+                    }
+                }
+                await sleep(1e3);
+            } while (attemptsCount > 0);
         } catch (error) {
             console.error(error);
         }

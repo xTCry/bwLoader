@@ -96,7 +96,11 @@ export default class CustomLoader extends LoaderClass {
 
         try {
             const file = 'index.html';
-            await this.loader.downloadFile(`${dURL}/${file}`, file, this.rootPath);
+            await this.loader.downloadFile({
+                url: `${dURL}/${file}`,
+                fileName: file,
+                _Path: this.rootPath,
+            });
 
             const path = Path.resolve(this.rootPath, file);
             const rData = await Fs.readFile(path);
@@ -106,7 +110,7 @@ export default class CustomLoader extends LoaderClass {
             });
             await Fs.writeFile(path, data);
         } catch (e) {
-            console.log('Failed to load index.html', e.message);
+            console.log('Failed to load index.html', e?.message || e);
             // console.error(e);
         }
     }

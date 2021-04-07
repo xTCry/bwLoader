@@ -44,35 +44,62 @@ export default class AppLoader {
      * @param cbIgnore Ignore content file
      * @param cbReplacer Replacer callback
      */
-    public async downloadFile(
-        url: string,
-        fileName: string,
-        _Path: string = this.rootPath + this.resourcePath,
-        cbIgnore: Function = undefined,
-        cbReplacer: Function | boolean = undefined
-    ) {
+    public async downloadFile({
+        url,
+        fileName,
+        _Path,
+        cbIgnore,
+        cbReplacer,
+        attempts,
+        headers,
+    }: {
+        url: string;
+        fileName: string;
+        _Path?: string;
+        cbIgnore?: Function;
+        cbReplacer?: Function | boolean;
+        attempts?: number;
+        headers?: any;
+    }) {
+        attempts = attempts || 1;
+        _Path = _Path || this.rootPath + this.resourcePath;
         const path = Path.resolve(_Path, fileName);
 
-        let response;
-        try {
-            response = await Axios({
-                url,
-                method: 'GET',
-                responseType: 'stream',
-                maxRedirects: 10,
-                timeout: 10e3,
-                headers: {
-                    'User-Agent':
-                        'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
-                },
-            });
-        } catch (error) {
-            // if (error) console.error(error);
+        url = encodeURI(url);
 
-            if (error.response && error.response.status === 404) {
+        let response;
+        let attemptsCount = attempts;
+        try {
+            do {
+                try {
+                    response = await Axios({
+                        url,
+                        method: 'GET',
+                        responseType: 'stream',
+                        maxRedirects: 10,
+                        timeout: 10e3,
+                        headers: {
+                            'User-Agent':
+                                'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
+                            ...(headers || {}),
+                        },
+                    });
+                    attemptsCount = 0;
+                } catch (err) {
+                    --attemptsCount;
+                    if (attemptsCount === 0 || err.response?.status === 404) {
+                        throw err;
+                    }
+                }
+                await sleep(500);
+            } while (attemptsCount > 0);
+        } catch (err) {
+            // if (err) console.error(err);
+
+            if (err.response?.status === 404) {
                 // console.log('Not found');
             }
-            return Promise.reject(error.response);
+            return Promise.reject(err.response);
         }
 
         const writer = Fs.createWriteStream(path);
@@ -152,7 +179,12 @@ export default class AppLoader {
             }
 
             try {
-                await this.downloadFile(`${this.sURL}/${path}/${fileName}`, `${path}/${fileName}`, this.rootPath);
+                await this.downloadFile({
+                    url: `${this.sURL}/${path}/${fileName}`,
+                    fileName: `${path}/${fileName}`,
+                    _Path: this.rootPath,
+                    attempts: 2,
+                });
                 downloadedCount++;
                 filesList.push(fileName);
                 spinnerFile.color = 'green';
@@ -240,22 +272,23 @@ export default class AppLoader {
             const shortFilePath = `${folder_type}/${fullFileName}`;
             try {
                 try {
-                    await this.downloadFile(
-                        `${this.sURL}/${this.resourcePath}${shortFilePath}`,
-                        shortFilePath,
-                        void 0,
+                    await this.downloadFile({
+                        url: `${this.sURL}/${this.resourcePath}${shortFilePath}`,
+                        fileName: shortFilePath,
+                        // _Path: this.rootPath,
                         cbIgnore,
-                        cbReplacer
-                    );
+                        cbReplacer,
+                        attempts: isMap ? 1 : 2,
+                    });
                 } catch (error) {
                     if (error && error.status === 404) {
-                        await this.downloadFile(
-                            `${this.sURL}/${this.resourcePath}${fullFileName}`,
-                            shortFilePath,
-                            void 0,
+                        await this.downloadFile({
+                            url: `${this.sURL}/${this.resourcePath}${fullFileName}`,
+                            fileName: shortFilePath,
                             cbIgnore,
-                            cbReplacer
-                        );
+                            cbReplacer,
+                            attempts: isMap ? 1 : 2,
+                        });
                     } else {
                         throw error;
                     }
@@ -276,7 +309,11 @@ export default class AppLoader {
                 filesList.push(fullFileName);
                 spinnerFile.color = 'green';
             } catch (error) {
-                !isMap && console.log('\nDownloadError', error.statusText ? `${error.statusText} (file: ${shortFilePath})` : error);
+                !isMap &&
+                    console.log(
+                        '\nDownloadError',
+                        error?.statusText ? `${error.statusText} (file: ${shortFilePath})` : error
+                    );
                 if (!error || [403, 404].includes(error.status)) {
                     blockFiles.push(fullFileName);
                     spinnerFile.color = 'red';
