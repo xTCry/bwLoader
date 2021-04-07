@@ -389,6 +389,10 @@ export default class AppLoader {
                 return check(code, e) ? String.fromCharCode(code) : match;
             })
         );
+
+        // fix %2F
+        data = data.replace(/\(\/\/\/(.)/, '(/\\//$1');
+
         return data;
     }
 
@@ -536,20 +540,20 @@ export default class AppLoader {
 
     /**
      * Create ... cache for git
-     * @param outGitPath Out git path
+     * @param publicPath Out git path
      * @param renameInData Rename in code
      * @param jsNicer Use jsNice
      * @param jsNicer Use jsNice
      */
-    public async CacheToGit(outGitPath: string, renameInData: boolean = true, jsNicer: boolean = false) {
+    public async CacheToGit(publicPath: string, renameInData: boolean = true, jsNicer: boolean = false) {
         const staticFolders = ['js', 'css', 'media'];
-        const outPaths = staticFolders.map((el) => Path.resolve(outGitPath, this.resourcePath, el));
+        const outPaths = staticFolders.map((el) => Path.resolve(publicPath, this.resourcePath, el));
 
         // Cleaning
-        const existOutFiles = await Fs.readdir(outGitPath);
-        for (const fileName of existOutFiles) {
+        const existPublicFiles = await Fs.readdir(publicPath);
+        for (const fileName of existPublicFiles) {
             if (!fileName.startsWith('.git') && fileName !== 'unpack') {
-                await Fs.remove(Path.resolve(outGitPath, fileName));
+                await Fs.remove(Path.resolve(publicPath, fileName));
             }
         }
 

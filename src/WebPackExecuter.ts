@@ -215,11 +215,11 @@ export default class WebPackExecuter {
                 ...this.window,
             },
         });
+        return dataFile;
     }
 
     tryGetStaticFile() {
-        const res = this.tryExecuteAll();
-        return res;
+        return this.tryExecuteAll();
     }
 
     // If React

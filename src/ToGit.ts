@@ -99,22 +99,21 @@ export default class ToGIT {
         this.git = gitP(path);
         const reposIsset = await this.checkIsRepo(!isSubGit);
 
-        if (useOnlyLocal) {
-            if (!reposIsset) {
+        if (!reposIsset) {
+            if (useOnlyLocal) {
                 await this.git.init();
                 this.logz('Local repo init [done]');
             } else {
-                this.logz('Repo exits');
-            }
-        } else if (!reposIsset) {
-            this.logz('Repo not exits');
+                this.logz('Repo not exits');
 
-            const resultNewRep = await this.createNewRep();
-            if (resultNewRep !== true) {
-                return resultNewRep;
+                const resultNewRep = await this.createNewRep();
+                if (resultNewRep !== true) {
+                    return resultNewRep;
+                }
             }
         } else {
             this.logz('Repo exits');
+            await this.fetch();
         }
 
         if (ignoreNodeModules) {
@@ -229,7 +228,6 @@ export default class ToGIT {
     }
 
     public async diff() {
-        await this.fetch();
         const res = await this.git.diffSummary({});
         const text = `Insertions: ${res.insertions}; Dels: ${res.deletions}; Changed: ${res.changed}.`;
         return { ...res, text };
