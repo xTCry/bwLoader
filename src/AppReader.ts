@@ -90,7 +90,8 @@ export default class AppReader {
         let response = undefined;
         try {
             response = axios(url, {
-                timeout: 5e3,
+                timeout: 10e3,
+                maxRedirects: 10,
             });
         } catch (error) {
             console.error(error);

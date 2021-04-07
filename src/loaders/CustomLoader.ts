@@ -225,16 +225,18 @@ export default class CustomLoader extends LoaderClass {
 
         let commitName = ComName();
 
-        // Cleaning
-        const existGitFiles = await Fs.readdir(gitPath);
-        for (const fileName of existGitFiles) {
-            if (
-                !fileName.startsWith('.git') &&
-                !['public', 'source', 'unpack', 'README.md', 'info.json'].includes(fileName)
-            ) {
-                await Fs.remove(Path.resolve(gitPath, fileName));
-            }
-        }
+        // STEP_ASK && await Readline.question(`[Step_ToGit#Cleaning] Press [Enter] to continue...`);
+        // // Cleaning
+        // const existGitFiles = await Fs.readdir(gitPath);
+        // for (const fileName of existGitFiles) {
+        //     if (
+        //         !fileName.startsWith('.git') &&
+        //         !['public', 'source', 'unpack', 'README.md', 'info.json'].includes(fileName)
+        //     ) {
+        //         console.log('Fs.remove fileName', fileName);
+        //         await Fs.remove(Path.resolve(gitPath, fileName));
+        //     }
+        // }
 
         diffs = await tg.diff();
         if (diffs.changed > 0) {

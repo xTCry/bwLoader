@@ -59,6 +59,12 @@ export default class AppLoader {
                 url,
                 method: 'GET',
                 responseType: 'stream',
+                maxRedirects: 10,
+                timeout: 10e3,
+                headers: {
+                    'User-Agent':
+                        'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
+                },
             });
         } catch (error) {
             // if (error) console.error(error);
@@ -270,6 +276,7 @@ export default class AppLoader {
                 filesList.push(fullFileName);
                 spinnerFile.color = 'green';
             } catch (error) {
+                !isMap && console.log('\nDownloadError', error.statusText ? `${error.statusText} (file: ${shortFilePath})` : error);
                 if (!error || [403, 404].includes(error.status)) {
                     blockFiles.push(fullFileName);
                     spinnerFile.color = 'red';
@@ -602,23 +609,25 @@ export default class AppLoader {
         // ...
 
         if (renameInData) {
-            // Renaming data in files
-            spinnerBeautify.start('Renaming in index.html file...');
-            spinnerBeautify.prefixText = '';
-            try {
-                const file = 'index.html';
-                let data = (await Fs.readFile(Path.resolve(this.rootPath, file))).toString();
+            const indexFile = 'index.html';
+            if (Fs.existsSync(Path.resolve(this.rootPath, indexFile))) {
+                // Renaming data in files
+                spinnerBeautify.start(`Renaming in ${indexFile} file...`);
+                spinnerBeautify.prefixText = '';
+                try {
+                    let data = (await Fs.readFile(Path.resolve(this.rootPath, indexFile))).toString();
 
-                for (const key in renamedFilesHistory) {
-                    if (Object.prototype.hasOwnProperty.call(renamedFilesHistory, key)) {
-                        const val = renamedFilesHistory[key];
-                        data = data.replace(new RegExp(key, 'g'), val);
+                    for (const key in renamedFilesHistory) {
+                        if (Object.prototype.hasOwnProperty.call(renamedFilesHistory, key)) {
+                            const val = renamedFilesHistory[key];
+                            data = data.replace(new RegExp(key, 'g'), val);
+                        }
                     }
-                }
 
-                await Fs.writeFile(Path.resolve(outGitPath, file), data);
-            } catch (e) {
-                console.error(e);
+                    await Fs.writeFile(Path.resolve(publicPath, indexFile), data);
+                } catch (e) {
+                    console.error(e);
+                }
             }
 
             const numberFiles = newPathsFiles.length;
