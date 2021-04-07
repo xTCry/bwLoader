@@ -508,31 +508,51 @@ export default class AppLoader {
     /**
      */
     async ExportModulesFiles(filesList: string[], nameWPJ: string = 'webpackJsonp', safeCount?: number) {
-        let res = [];
+        let exports = [];
+        let mediaFiles: string[] = [];
 
         try {
             const WPE = new WebPackExecuter({ nameWPJ });
 
             if (!filesList || filesList.length == 0) {
-                filesList = await Fs.readdir(this.rootPath + this.resourcePath + 'js');
+                filesList = await Fs.readdir(`${this.rootPath + this.resourcePath}js`);
                 // Like, if there are many files, then make a limit
                 if (safeCount) filesList = filesList.slice(0, safeCount);
             }
 
             for (const _file of filesList) {
                 try {
-                    await WPE.Include(this.rootPath + this.resourcePath + 'js' + '/', _file);
+                    const fileData = await WPE.Include(`${this.rootPath + this.resourcePath}js/`, _file);
+
+                    mediaFiles.push(...this.parseMediaFromJs(fileData));
                 } catch (error) {
                     console.log('Failed include ', _file, error.message);
                 }
             }
 
             try {
-                res = WPE.tryGetStaticFile();
-                res = res.filter(({ exports: e }) => typeof e === 'string' && !e.startsWith('data:image'));
+                exports = WPE.tryGetStaticFile();
+                exports = exports.filter(({ exports: e }) => typeof e === 'string' && !e.startsWith('data:image'));
             } catch (e) {}
         } catch (error) {
             console.error(error);
+        }
+
+        return { exports, mediaFiles };
+    }
+
+    parseMediaFromJs(content: string) {
+        let res = [];
+        const regExp = `\\.p\\s?\\+\\s?"(?<path>(\\/?static)?\\/media\\/([^"/]+))"`;
+        let parse = content.match(new RegExp(regExp, 'g'));
+
+        if (parse) {
+            for (let r of parse) {
+                let {
+                    groups: { path },
+                } = r.match(new RegExp(regExp));
+                res.push(path);
+            }
         }
 
         return res;
