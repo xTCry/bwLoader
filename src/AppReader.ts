@@ -2,6 +2,14 @@ import cheerio from 'cheerio';
 import axios from 'axios';
 import { sleep } from './tools';
 
+export type ChunkFiles = { [key: string]: string };
+
+export interface IExtrStr2Obj {
+    names: ChunkFiles;
+    hashes: ChunkFiles;
+    result: ChunkFiles;
+}
+
 export default class AppReader {
     constructor(public url: string) {}
 
@@ -9,27 +17,28 @@ export default class AppReader {
         let { data: html } = await AppReader.getPage(this.url);
 
         let data = AppReader.getResources(html);
-        let { objJS, getJS, objCSS, getCSS, staticName } = AppReader.parseResources(data);
+        let res = AppReader.parseResources(data);
 
         return {
             main: data,
-            static: {
-                js: {
-                    ...objJS,
-                    ...getJS.result,
-                },
-                css: {
-                    ...objCSS,
-                    ...getCSS.result,
-                },
-            },
-            staticName,
+            parsed: res,
         };
     }
 
-    static parseResources(data: { js: { src?: string; data?: string }[]; css: { href: string }[] }) {
+    static parseResources(data: {
+        js: { src?: string; data?: string }[];
+        css: { href: string }[];
+    }): {
+        js: string[];
+        css: string[];
+        static: {
+            js: string[];
+            css: string[];
+        };
+        staticName: string;
+    } {
         // Get chunks
-        let fdata: string = data.js
+        let contentWPJ: string = data.js
             .filter((e) => e.hasOwnProperty('data'))
             .map((e) => e.data)
             .filter((e) => e.includes('window.webpackJsonp') || (e.includes('webpackJsonp') && e.includes('chunk')))[0];
@@ -40,22 +49,23 @@ export default class AppReader {
                 'i'
             );
 
-        // Поиск чанков (loadable)
-        const getCSSdata = fdata?.match(regexChunkTemplate('css'))?.groups || {};
-        const getJSdata = fdata?.match(regexChunkTemplate('js'))?.groups || {};
+        // Search for chunks (loadable)
+        const chunksJSdata = contentWPJ?.match(regexChunkTemplate('js'))?.groups || {};
+        const chunksCSSdata = contentWPJ?.match(regexChunkTemplate('css'))?.groups || {};
 
-        const getCSS = AppReader.extactStrToObject(getCSSdata, '.chunk');
-        const getJS = AppReader.extactStrToObject(getJSdata, '.chunk');
+        const chunkJSObj = AppReader.extactStrToObject(chunksJSdata, '.chunk');
+        const chunkCSSObj = AppReader.extactStrToObject(chunksCSSdata, '.chunk');
 
         const regexTemplate = (type) =>
             new RegExp(
-                `(\\.\\/)?(?<_static>[a-z]+)?(\\/${type}\\/)?(?<code>[A-b0-9\\-]+)[\\.-](?<name>[A-b0-9\\-]+(\\.chunk)?)\\.${type}`,
+                `(\\.\\/)?(?<_static>[a-z]+)(\\/${type}\\/)?(?<code>[A-b0-9\\-]+)[\\.-](?<name>[A-b0-9\\-]+(\\.chunk)?)\\.${type}`,
                 'i'
             );
 
-        const regexJS = regexTemplate('js');
-        const regexCSS = regexTemplate('css');
+        const regexChunkJS = regexTemplate('js');
+        const regexChunkCSS = regexTemplate('css');
 
+        // ! bad practice of using this crutch. Remake
         let staticName = '';
         const getMatch = (data: string, regex) => {
             let { _static, code, name } = data.match(regex)?.groups;
@@ -64,25 +74,51 @@ export default class AppReader {
         };
 
         // Get chunks
-        const objJS = data.js
-            .filter((e) => e.hasOwnProperty('src'))
-            .filter(({ src }) => regexJS.test(src) && !src.includes('://'))
-            .map(({ src }) => getMatch(src, regexJS))
-            .filter((e) => !e._static || staticName)
-            .reduce((prev, { code, name }) => ({ ...prev, [code]: `${code}.${name}` }), {});
 
-        const objCSS = data.css
-            .filter((e) => e.hasOwnProperty('href'))
-            .filter(({ href }) => regexCSS.test(href) && !href.includes('://'))
-            .map(({ href }) => getMatch(href, regexCSS))
-            .filter((e) => !e._static || staticName)
-            .reduce((prev, { code, name }) => ({ ...prev, [code]: `${code}.${name}` }), {});
+        const listJS = data.js.filter((e) => e.hasOwnProperty('src'));
+        const otherJS: string[] = [];
+        const chunkJS: ChunkFiles = {};
+        for (let { src } of listJS) {
+            if (src.includes('://')) continue;
+            if (!src.includes('.min.') && regexChunkJS.test(src)) {
+                let { code, name, _static } = getMatch(src, regexChunkJS);
+                if (!_static || staticName) {
+                    chunkJS[code] = `${code}.${name}`;
+                }
+            } else {
+                otherJS.push(src);
+            }
+        }
+
+        const listCSS = data.css.filter((e) => e.hasOwnProperty('href'));
+        const otherCSS: string[] = [];
+        const chunkCSS: ChunkFiles = {};
+        for (let { href } of listCSS) {
+            if (href.includes('://')) continue;
+            if (regexChunkCSS.test(href)) {
+                let { code, name, _static } = getMatch(href, regexChunkCSS);
+                if (!_static || staticName) {
+                    chunkCSS[code] = `${code}.${name}`;
+                }
+            } else {
+                otherCSS.push(href);
+            }
+        }
+
+        let js = [...Object.values(chunkJS), ...[], ...Object.values(chunkJSObj.result)].map(
+            (e) => `${staticName}/js/${e}.js`
+        );
+        let css = [...Object.values(chunkCSS), ...Object.values(chunkCSSObj.result)].map(
+            (e) => `${staticName}/css/${e}.css`
+        );
 
         return {
-            objJS,
-            getJS,
-            objCSS,
-            getCSS,
+            js: otherJS,
+            css: otherCSS,
+            static: {
+                js,
+                css,
+            },
             staticName,
         };
     }
@@ -154,7 +190,10 @@ export default class AppReader {
         return output;
     }
 
-    static extactStrToObject({ names: strNames = '', hashes: strHashes = '' }, additionalPostfix: string = '') {
+    static extactStrToObject(
+        { names: strNames = '', hashes: strHashes = '' },
+        additionalPostfix: string = ''
+    ): IExtrStr2Obj {
         strNames = strNames.replace(/['"]+/g, '');
         strHashes = strHashes.replace(/['"]+/g, '');
 

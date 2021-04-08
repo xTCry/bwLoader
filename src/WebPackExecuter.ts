@@ -205,11 +205,10 @@ export default class WebPackExecuter {
 
     /**
      * Include file to WebPack
-     * @param {sting} path Patho to file
-     * @param {sting} file File name
+     * @param {string} path Path to file
      */
-    async Include(path, file) {
-        const dataFile = (await Fs.readFile(path + file)).toString();
+    async Include(path: string) {
+        const dataFile = (await Fs.readFile(path)).toString();
         safeEval(dataFile, {
             window: {
                 ...this.window,

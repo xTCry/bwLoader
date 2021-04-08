@@ -118,6 +118,10 @@ export const appsSchema = {
                 format: 'Boolean',
                 default: true,
             },
+            skipMap: {
+                format: 'Boolean',
+                default: false,
+            },
             loader: {
                 doc: 'Loader type',
                 format: ['CustomLoader'],

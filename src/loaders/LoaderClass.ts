@@ -11,13 +11,16 @@ export default abstract class Loader {
     public resourcePath?: string | boolean;
     public wpName?: string;
     public togit?: boolean;
+    public skipMap?: boolean;
 
     public forceDownload: boolean;
     public clearCache: boolean;
 
     public staticName?: string;
-    public listJS = {};
-    public listCSS = {};
+    public staticJS: string[] = [];
+    public staticCSS: string[] = [];
+    public otherJS: string[] = [];
+    public otherCSS: string[] = [];
 
     constructor(public config: typeof configSchema) {}
 
@@ -34,6 +37,7 @@ export default abstract class Loader {
         resourcePath = 'static/',
         wpName,
         togit = true,
+        skipMap = false,
         forceDownload = true,
         clearCache = true,
     }: {
@@ -42,6 +46,7 @@ export default abstract class Loader {
         resourcePath?: string | boolean;
         wpName?: string;
         togit?: boolean;
+        skipMap?: boolean;
         forceDownload?: boolean;
         clearCache?: boolean;
     }) {
@@ -52,6 +57,7 @@ export default abstract class Loader {
         this.resourcePath = resourcePath;
         this.wpName = wpName;
         this.togit = togit;
+        this.skipMap = skipMap;
 
         this.forceDownload = forceDownload;
         this.clearCache = clearCache;

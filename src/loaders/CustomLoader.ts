@@ -7,37 +7,41 @@ import { ComName, xConfig } from '../tools';
 
 import LoaderClass from './LoaderClass';
 import { getMe } from '../AppReader';
-import AppLoader from '../AppLoader';
+import AppLoader, { IDownloadProcessResult } from '../AppLoader';
 import ToGit from '../ToGit';
 import Readline from '../readline';
 
-const STEP_ASK = true;
+const STEP_ASK = !true;
 
 export default class CustomLoader extends LoaderClass {
     public async Start() {
         await this.Step_LoadApp();
         await this.Step_InitAppLoader();
         await this.Step_PrepareArea();
-        const { resJS } = await this.Step_StartDownload();
-        await this.Step_StartDownload_Media(resJS);
+        const res = await this.Step_StartDownload();
+        await this.Step_StartDownload_Media(res);
         await this.Step_ToGit();
 
         console.log('\n----\nFinish.');
     }
 
     protected async Step_LoadApp() {
-        STEP_ASK && await Readline.question(`[Step_LoadApp] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_LoadApp] Press [Enter] to continue...`));
 
         // Load site modules
         const appDataS = await getMe(this.url);
         let {
-            static: { js: listJS, css: listCSS },
+            static: { js: staticJS, css: staticCSS },
+            js,
+            css,
             staticName,
-        } = appDataS;
+        } = appDataS.parsed;
 
         this.staticName = staticName;
-        this.listJS = listJS;
-        this.listCSS = listCSS;
+        this.staticJS = staticJS;
+        this.staticCSS = staticCSS;
+        this.otherJS = js;
+        this.otherCSS = css;
 
         if (this.resourcePath === true) {
             this.resourcePath = staticName;
@@ -45,7 +49,7 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_InitAppLoader() {
-        STEP_ASK && await Readline.question(`[Step_InitAppLoader] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_InitAppLoader] Press [Enter] to continue...`));
 
         let dURL = this.url;
 
@@ -58,7 +62,7 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_PrepareArea() {
-        STEP_ASK && await Readline.question(`[Step_PrepareArea] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_PrepareArea] Press [Enter] to continue...`));
 
         // Cleaning
         const existOldFiles = await Fs.readdir(this.rootPath);
@@ -74,23 +78,33 @@ export default class CustomLoader extends LoaderClass {
             await Fs.remove(this.rootPath);
         }
 
-        // Create folders
-        for await (let el of ['js', 'css', 'media'].map((el) => this.rootPath + this.resourcePath + el)) {
+        // Create default resource folders
+        for await (let el of ['js', 'css', 'media'].map((el) =>
+            Path.resolve(this.rootPath, <string>this.resourcePath, el)
+        )) {
             await Fs.mkdirp(el);
         }
     }
 
     protected async Step_StartDownload() {
-        STEP_ASK && await Readline.question(`[Step_StartDownload] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_StartDownload] Press [Enter] to continue...`));
 
         await this.Step_StartDownload_Index();
         const resJS = await this.Step_StartDownload_JS();
-        await this.Step_StartDownload_CSS();
-        return { resJS };
+        const resCSS = await this.Step_StartDownload_CSS();
+        // {
+        //     downloadedCount: 0,
+        //     skippedCount: 0,
+        //     count: 0,
+        //     filesList: [],
+        //     ripFiles: [],
+        // };
+
+        return { resJS, resCSS };
     }
 
     protected async Step_StartDownload_Index() {
-        STEP_ASK && await Readline.question(`[Step_StartDownload_Index] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_StartDownload_Index] Press [Enter] to continue...`));
 
         let dURL = this.url.includes('index.html') ? this.url.slice(0, this.url.indexOf('index.html')) : this.url;
 
@@ -98,8 +112,8 @@ export default class CustomLoader extends LoaderClass {
             const file = 'index.html';
             await this.loader.downloadFile({
                 url: `${dURL}/${file}`,
-                fileName: file,
-                _Path: this.rootPath,
+                filePath: file,
+                rootPath: this.rootPath,
             });
 
             const path = Path.resolve(this.rootPath, file);
@@ -116,27 +130,35 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_StartDownload_JS() {
-        STEP_ASK && await Readline.question(`[Step_StartDownload_JS] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_StartDownload_JS] Press [Enter] to continue...`));
 
         // WORK [JS]
-        const resJS = await this.loader.DownloadChunkProcess(
-            this.listJS,
-            'js',
-            'JS',
-            this.forceDownload,
-            false,
-            undefined,
-            true
-        );
+        const resJS = await this.loader.DownloadChunkProcess({
+            files: this.staticJS,
+            subPathForExistFiles: `${this.resourcePath}/js`,
+            filesTitle: 'JS',
+            skipExistFiles: this.forceDownload,
+            cbReplacer: true,
+        });
 
         await this.tryGetWPName();
 
-        await this.loader.BeautifyAllFilesProcess('js', 'JS', resJS.filesList);
-        if (resJS.ripCount > 0) console.log(`Failed load [${resJS.ripCount}] JS files!`, resJS.ripFiles);
+        await this.loader.BeautifyAllFilesProcess({ folderType: 'js', filesTitle: 'JS', files: resJS.filesList });
+        if (resJS.ripFiles.length > 0) {
+            console.log(`Failed load [${resJS.ripFiles.length}] JS files!`, resJS.ripFiles);
+        }
         console.log('\n----');
 
-        const resJSmap = await this.loader.DownloadChunkProcess(this.listJS, 'js', 'JS [MAP]', true, true);
-        await this.loader.UnpackAllSource('js', 'JS [MAP]', resJSmap.filesList);
+        if (!this.skipMap) {
+            const resJSmap = await this.loader.DownloadChunkProcess({
+                files: this.staticJS,
+                subPathForExistFiles: `${this.resourcePath}/js`,
+                filesTitle: 'JS [MAP]',
+                isMap: true,
+                cbReplacer: true,
+            });
+            await this.loader.UnpackAllSource({ filesTitle: 'JS [MAP]', files: resJSmap.filesList });
+        }
         return resJS;
     }
 
@@ -151,12 +173,13 @@ export default class CustomLoader extends LoaderClass {
             const wpRegex = new RegExp(`.?(${regWPName()}) ?= ?(${regWPName('2')}) ?\\|\\| ?\\[\\]`, 'i');
 
             const folder_type = 'js';
-            let filesList = await Fs.readdir(this.rootPath + this.resourcePath + folder_type + '/');
-            for (let fileName of filesList) {
-                const file = `${this.rootPath + this.resourcePath + folder_type}/${fileName}`;
-                const codeString = (await Fs.readFile(file)).toString();
-                if (wpRegex.test(codeString)) {
-                    let { 1: wpName } = codeString.match(wpRegex);
+            const filesPath = Path.resolve(this.rootPath, <string>this.resourcePath, folder_type);
+            const files = await Fs.readdir(filesPath);
+            for (let file of files) {
+                const filePath = Path.resolve(filesPath, file);
+                const fileContent = (await Fs.readFile(filePath)).toString();
+                if (wpRegex.test(fileContent)) {
+                    let { 1: wpName } = fileContent.match(wpRegex);
                     wpName = wpName.trim();
                     if (wpName.length < 100) {
                         this.wpName = wpName;
@@ -171,52 +194,94 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async Step_StartDownload_CSS() {
-        STEP_ASK && await Readline.question(`[Step_StartDownload_CSS] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_StartDownload_CSS] Press [Enter] to continue...`));
 
         // WORK [CSS]
-        const resCSS = await this.loader.DownloadChunkProcess(this.listCSS, 'css', 'CSS', this.forceDownload);
-        await this.loader.BeautifyAllFilesProcess('css', 'CSS', resCSS.filesList);
-        if (resCSS.ripCount > 0) console.log(`Failed load [${resCSS.ripCount}] CSS files!`);
+        const resCSS = await this.loader.DownloadChunkProcess({
+            files: this.staticCSS,
+            subPathForExistFiles: `${this.resourcePath}/css`,
+            filesTitle: 'CSS',
+            skipExistFiles: this.forceDownload,
+            // cbReplacer: true,
+        });
+        await this.loader.BeautifyAllFilesProcess({
+            folderType: 'css',
+            filesTitle: 'CSS',
+            files: resCSS.filesList,
+        });
+        if (resCSS.ripFiles.length > 0) {
+            console.log(`Failed load [${resCSS.ripFiles.length}] CSS files!`);
+        }
         console.log('\n----');
-
-        const resCSSmap = await this.loader.DownloadChunkProcess(this.listCSS, 'css', 'CSS [MAP]', true, true);
-        await this.loader.UnpackAllSource('css', 'CSS [MAP]', resCSSmap.filesList, undefined, 'temp/react');
+        
+        if (!this.skipMap) {
+            const resCSSmap = await this.loader.DownloadChunkProcess({
+                files: this.staticCSS,
+                subPathForExistFiles: `${this.resourcePath}/css`,
+                filesTitle: 'CSS [MAP]',
+                isMap: true,
+                cbReplacer: true,
+            });
+            await this.loader.UnpackAllSource({
+                filesTitle: 'CSS [MAP]',
+                files: resCSSmap.filesList,
+                split: 'temp/react',
+            });
+        }
+        return resCSS;
     }
 
-    protected async Step_StartDownload_Media(resJS) {
-        STEP_ASK && await Readline.question(`[Step_StartDownload_Media] Press [Enter] to continue...`);
+    protected async Step_StartDownload_Media({
+        resJS,
+        resCSS,
+    }: {
+        resJS: IDownloadProcessResult;
+        resCSS: IDownloadProcessResult;
+    }) {
+        STEP_ASK && (await Readline.question(`[Step_StartDownload_Media] Press [Enter] to continue...`));
 
-        const { exports: exportedModules, mediaFiles } = await this.loader.ExportModulesFiles(
-            resJS.filesList,
-            this.wpName,
-            80
+        let listMedia: string[] = [];
+        const { exports, mediaFiles } = await this.loader.ImportModulesAndGetExports(resJS.filesList, this.wpName, 80);
+
+        for (const file of resCSS.filesList) {
+            try {
+                const fileContent = (await Fs.readFile(Path.resolve(this.rootPath, file))).toString();
+                listMedia.push(...this.loader.parseMediaFromCss(fileContent));
+            } catch (error) {
+                console.log('[Error] Media. Failed read file', file);
+            }
+        }
+
+        listMedia.push(
+            ...exports
+                .filter(
+                    ({ exports: e }) =>
+                        typeof e === 'string' && !e.startsWith('data:image') && e.includes(`${this.resourcePath}/media/`)
+                )
+                .map(({ exports }) => exports)
         );
-
-        let listMedia = exportedModules
-            .filter(
-                ({ exports }) =>
-                    exports.startsWith(`${this.staticName}/media/`) || exports.startsWith(`/${this.staticName}/media/`)
-            )
-            .map(({ exports }) => Path.basename(exports));
 
         listMedia.push(...mediaFiles);
         listMedia = listMedia.filter((val, i, self) => self.indexOf(val) === i);
 
+        // console.log(listMedia);
+
         // Downloading media files
-        const resMedia = await this.loader.DownloadFilesProcess(
-            listMedia,
-            `${this.staticName}/media`,
-            'Media',
-            this.forceDownload
-        );
-        if (resMedia.ripCount > 0) {
-            console.log(`Failed load [${resMedia.ripCount}] Media files!`, resMedia.ripFiles);
+        const resMedia = await this.loader.DownloadFilesProcess({
+            files: listMedia,
+            subPathForExistFiles: `${this.resourcePath}/media`,
+            filesTitle: 'Media',
+            skipExistFiles: !this.forceDownload,
+        });
+        if (resMedia.ripFiles.length > 0) {
+            console.log(`Failed load [${resMedia.ripFiles.length}] Media files!`, resMedia.ripFiles);
         }
         // ...
     }
 
     protected async Step_ToGit() {
-        STEP_ASK && await Readline.question(`[Step_ToGit#Start] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_ToGit#Start] Press [Enter] to continue...`));
+        !STEP_ASK && (await Readline.question(`[GIT] Press [Enter] to start commits...`));
 
         const gitPath = Path.resolve(this.rootPath, '../togit/');
         const tg = new ToGit(this.config.GIT as xConfig<typeof configSchema.GIT>);
@@ -253,11 +318,11 @@ export default class CustomLoader extends LoaderClass {
         diffs = await tg.diff();
         if (diffs.changed > 0) {
             tg.log('(🧹-CLEANING) Diff result:', diffs.text);
-            STEP_ASK && await Readline.question(`[Step_ToGit#CommitCLEANING] Press [Enter] to continue...`);
+            STEP_ASK && (await Readline.question(`[Step_ToGit#CommitCLEANING] Press [Enter] to continue...`));
             await tg.commit(`chore(🧹): clean up old files [${commitName}]`);
         }
 
-        STEP_ASK && await Readline.question(`[Step_ToGit#CreateInfos] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_ToGit#CreateInfos] Press [Enter] to continue...`));
         // Create info.json
         await Fs.writeFile(
             Path.resolve(gitPath, 'info.json'),
@@ -268,13 +333,13 @@ export default class CustomLoader extends LoaderClass {
             `# bwLoader - ${this.name}\n\n> URL: ${this.url}\n\nThis repository is automatically generated by [@xTCry/bwLoader](https://github.com/xTCry/bwLoader)`
         );
 
-        STEP_ASK && await Readline.question(`[Step_ToGit#CacheToGit] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_ToGit#CacheToGit] Press [Enter] to continue...`));
         await Fs.ensureDir(Path.resolve(gitPath, 'public'));
         await this.loader.CacheToGit(Path.resolve(gitPath, 'public'));
 
         diffs = await tg.diff();
         tg.log('(🍊-PUBLIC) Diff result:', diffs.text);
-        STEP_ASK && await Readline.question(`[Step_ToGit#CommitPUBLIC] Press [Enter] to continue...`);
+        STEP_ASK && (await Readline.question(`[Step_ToGit#CommitPUBLIC] Press [Enter] to continue...`));
         await tg.commit(`feat(🍊): public up [${commitName}]`);
 
         let issetSource = await this.loader.CopyFolderToGit(
@@ -284,12 +349,12 @@ export default class CustomLoader extends LoaderClass {
         if (issetSource) {
             diffs = await tg.diff();
             tg.log('(🍏-SOURCE) Diff result:', diffs.text);
-            STEP_ASK && await Readline.question(`[Step_ToGit#CommitSOURCE] Press [Enter] to continue...`);
+            STEP_ASK && (await Readline.question(`[Step_ToGit#CommitSOURCE] Press [Enter] to continue...`));
             await tg.commit(`feat(🍏): source up [${commitName}]`);
         }
 
-        STEP_ASK && await Readline.question(`[Step_ToGit#Push] Press [Enter] to continue...`);
-        !STEP_ASK && await Readline.question(`[GIT] Press [Enter] to push...`);
+        STEP_ASK && (await Readline.question(`[Step_ToGit#Push] Press [Enter] to continue...`));
+        !STEP_ASK && (await Readline.question(`[GIT] Press [Enter] to push...`));
         await tg.push();
     }
 }

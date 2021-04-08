@@ -15,6 +15,14 @@ const spinnerFile = ora(),
         spinner: 'moon',
     });
 
+export interface IDownloadProcessResult {
+    downloadedCount: number;
+    skippedCount: number;
+    count: number;
+    filesList: string[];
+    ripFiles: { fileName: string; url: string }[];
+};
+
 export default class AppLoader {
     public sURL: string;
     public resourcePath: string;
@@ -33,37 +41,39 @@ export default class AppLoader {
     }
 
     public async init() {
-        await Fs.mkdirp(this.rootPath + this.resourcePath);
+        await Fs.ensureDir(Path.join(this.rootPath, this.resourcePath));
     }
 
     /**
      * Downlaod file
      * @param url download URL
-     * @param fileName file name
-     * @param _Path Download folder path
+     * @param filePath Download file path
+     * @param rootPath Root path
      * @param cbIgnore Ignore content file
      * @param cbReplacer Replacer callback
+     * @param attempts Count attempts download file
+     * @param headers Request headers object
      */
     public async downloadFile({
         url,
-        fileName,
-        _Path,
+        filePath,
+        rootPath,
         cbIgnore,
         cbReplacer,
         attempts,
         headers,
     }: {
         url: string;
-        fileName: string;
-        _Path?: string;
+        filePath: string;
+        rootPath?: string;
         cbIgnore?: Function;
         cbReplacer?: Function | boolean;
         attempts?: number;
         headers?: any;
     }) {
         attempts = attempts || 1;
-        _Path = _Path || this.rootPath + this.resourcePath;
-        const path = Path.resolve(_Path, fileName);
+        rootPath = rootPath || this.rootPath;
+        const path = Path.resolve(Path.join(rootPath, filePath));
 
         url = encodeURI(url);
 
@@ -140,58 +150,70 @@ export default class AppLoader {
 
     /**
      * Process download chunk files
-     * @param list List objects
-     * @param path Path
-     * @param nameT Name type file in console
-     * @param force Download even if exist
+     * @param files Files array
+     * @param subPathForExistFiles Path
+     * @param filesType Name type file in console
+     * @param skipExistFiles Skip the file if it exists
      *
      * @returns {object}
      */
-    async DownloadFilesProcess(list: string[], path: string, nameT: string, force: boolean = false) {
-        console.log(`Download ${nameT} files...`);
+    async DownloadFilesProcess({
+        files,
+        subPathForExistFiles,
+        filesTitle,
+        skipExistFiles,
+    }: {
+        files: string[];
+        subPathForExistFiles: string;
+        filesTitle: string;
+        skipExistFiles: boolean;
+    }): Promise<IDownloadProcessResult> {
+        skipExistFiles = skipExistFiles ?? true;
+        console.log(`Download ${filesTitle} files...`);
         spinnerFile.start('Download file...');
 
-        const numberOfFiles = list.length;
-        const existFiles = await Fs.readdir(this.rootPath + path);
+        const filesCount = files.length;
+        const existFiles = await Fs.readdir(Path.resolve(this.rootPath, subPathForExistFiles));
 
         await sleep(4);
 
-        let downloadedCount = 0,
-            skippedCount = 0,
-            ripCount = 0,
-            filesList = [],
-            ripFiles = [],
-            i = 0;
+        let downloadedCount = 0;
+        let skippedCount = 0;
+        let filesList = [];
+        let ripFiles: { fileName: string; url: string }[] = [];
 
-        for (const fileName of list) {
-            if (!force && existFiles.includes(fileName)) {
+        let i = 0;
+        for (const filePath of files) {
+            const fileName = Path.basename(filePath);
+            if (skipExistFiles && existFiles.includes(fileName)) {
                 skippedCount++;
                 i++;
                 continue;
             }
 
-            let msg = `Download ${nameT}=> [${gradient.pastel(fileName)}]`;
+            let msg = `Download ${filesTitle}=> [${gradient.pastel(filePath)}]`;
             {
                 spinnerFile.text = msg;
                 spinnerFile.prefixText = gradient.vice(
-                    `[ ${((((i * 100) / numberOfFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
+                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`
                 );
             }
 
+            let url = `${this.sURL}/${filePath.replace(/^\/|\/$/g, '')}`;
             try {
                 await this.downloadFile({
-                    url: `${this.sURL}/${path}/${fileName}`,
-                    fileName: `${path}/${fileName}`,
-                    _Path: this.rootPath,
+                    url,
+                    filePath,
+                    // rootPath: this.rootPath,
                     attempts: 2,
                 });
                 downloadedCount++;
-                filesList.push(fileName);
+                filesList.push(filePath);
                 spinnerFile.color = 'green';
             } catch (e) {
+                // console.error('donwload err', e);
                 // if (e && e.status == 404) {
-                ripCount++;
-                ripFiles.push([`${this.sURL}/${path}/${fileName}`, fileName]);
+                ripFiles.push({ url, fileName });
                 // } else if(e) console.error(e)
                 spinnerFile.color = 'red';
             }
@@ -200,103 +222,106 @@ export default class AppLoader {
         }
 
         spinnerFile.prefixText = gradient.vice('[ 100% ]');
-        spinnerFile.succeed(`Downloaded ${downloadedCount} ${nameT} files`);
+        spinnerFile.succeed(`Downloaded ${downloadedCount} ${filesTitle} files`);
 
         return {
             downloadedCount,
             skippedCount,
             count: downloadedCount + skippedCount,
             filesList,
-            ripCount,
             ripFiles,
         };
     }
 
     /**
      * Process download chunk files
-     * @param list List objects
-     * @param folder_type Download folder and lower case name type download files
-     * @param nameT Name type file in console
-     * @param force Download even if exist
+     * @param files List objects
+     * @param folderType Download folder and lower case name type download files
+     * @param filesTitle Name type file in console
+     * @param skipExistFiles Download even if exist
      * @param isMap Is now download *.map files
      * @param cbIgnore Ignore content file
      * @param cbReplacer Replacer callback
      *
      * @returns {object}
      */
-    public async DownloadChunkProcess(
-        list: { [key: number]: string },
-        folder_type: string,
-        nameT: string,
-        force: boolean = false,
-        isMap: boolean = false,
-        cbIgnore: Function = undefined,
-        cbReplacer: Function | boolean = undefined
-    ) {
-        console.log(`Download ${nameT} files...`);
+    public async DownloadChunkProcess({
+        files,
+        subPathForExistFiles,
+        filesTitle,
+        skipExistFiles,
+        isMap,
+        cbIgnore,
+        cbReplacer,
+    }: {
+        files: string[];
+        subPathForExistFiles: string;
+        filesTitle: string;
+        skipExistFiles?: boolean;
+        isMap?: boolean;
+        cbIgnore?: Function;
+        cbReplacer?: Function | boolean;
+    }): Promise<IDownloadProcessResult> {
+        skipExistFiles = skipExistFiles ?? true;
+        isMap = isMap ?? false;
+        console.log(`Download ${filesTitle} files...`);
 
         spinnerFile.start('Download file...');
 
-        const numberOfFiles = Object.keys(list).length;
+        const filesCount = files.length;
+        const existFiles = await Fs.readdir(Path.resolve(this.rootPath, subPathForExistFiles));
 
-        const existFiles = await Fs.readdir(this.rootPath + this.resourcePath + folder_type + '/');
+        // for fast test
+        // spinnerFile.stop();
+        // return {
+        //     downloadedCount: existFiles.length,
+        //     count: existFiles.length,
+        //     skippedCount: 0,
+        //     filesList: existFiles.map((f) => Path.join('./', subPathForExistFiles, f)),
+        //     ripFiles: [],
+        // };
 
         await sleep(3);
 
         let downloadedCount = 0;
         let skippedCount = 0;
-        let ripCount = 0;
         let filesList = [];
-        let ripFiles = [];
+        let ripFiles: { fileName: string; url: string }[] = [];
         let blockFiles: string[] = [];
 
         let i = 0;
-        for (const fileName of Object.values(list)) {
-            const fullFileName = `${fileName}.${folder_type}${isMap ? '.map' : ''}`;
+        for (const filePath1 of files) {
+            const filePath = `${filePath1}${isMap ? '.map' : ''}`;
+            const fileName = Path.basename(filePath);
 
-            if (!force && (existFiles.includes(fullFileName) || blockFiles.includes(fullFileName))) {
+            if (!skipExistFiles && (existFiles.includes(fileName) || blockFiles.includes(filePath))) {
                 skippedCount++;
                 i++;
                 continue;
             }
 
-            let msg = `Download ${nameT}=> [${gradient.pastel(fullFileName)}]`;
+            let msg = `Download ${filesTitle}=> [${gradient.pastel(fileName)}]`;
 
             {
                 spinnerFile.text = msg;
                 spinnerFile.prefixText = gradient.vice(
-                    `[ ${((((i * 100) / numberOfFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
+                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`
                 );
             }
 
-            const shortFilePath = `${folder_type}/${fullFileName}`;
+            let url = `${this.sURL}/${filePath}`;
             try {
-                try {
-                    await this.downloadFile({
-                        url: `${this.sURL}/${this.resourcePath}${shortFilePath}`,
-                        fileName: shortFilePath,
-                        // _Path: this.rootPath,
-                        cbIgnore,
-                        cbReplacer,
-                        attempts: isMap ? 1 : 2,
-                    });
-                } catch (error) {
-                    if (error && error.status === 404) {
-                        await this.downloadFile({
-                            url: `${this.sURL}/${this.resourcePath}${fullFileName}`,
-                            fileName: shortFilePath,
-                            cbIgnore,
-                            cbReplacer,
-                            attempts: isMap ? 1 : 2,
-                        });
-                    } else {
-                        throw error;
-                    }
-                }
+                await this.downloadFile({
+                    url,
+                    filePath,
+                    cbIgnore,
+                    cbReplacer,
+                    attempts: isMap ? 1 : 2,
+                });
 
                 // Test correct MAP file
                 if (isMap) {
-                    const pf = Path.resolve(this.rootPath + this.resourcePath, shortFilePath);
+                    const pf = Path.resolve(this.rootPath, filePath);
                     try {
                         JSON.parse((await Fs.readFile(pf)).toString());
                     } catch (error) {
@@ -306,86 +331,87 @@ export default class AppLoader {
                 }
 
                 downloadedCount++;
-                filesList.push(fullFileName);
+                filesList.push(filePath);
                 spinnerFile.color = 'green';
             } catch (error) {
                 !isMap &&
                     console.log(
                         '\nDownloadError',
-                        error?.statusText ? `${error.statusText} (file: ${shortFilePath})` : error
+                        error?.statusText ? `${error.statusText} (file: ${fileName})` : error
                     );
-                if (!error || [403, 404].includes(error.status)) {
-                    blockFiles.push(fullFileName);
+                if (!error || [403, 404, 500].includes(error.status)) {
+                    blockFiles.push(filePath);
                     spinnerFile.color = 'red';
                 } else if (error.message === 'Skip file') {
                     i++;
                     spinnerFile.color = 'yellow';
                     continue;
                 } else console.error(error);
-
-                ripCount++;
-                ripFiles.push(fullFileName);
+                ripFiles.push({ url, fileName });
             }
             i++;
         }
 
-        spinnerFile.succeed(`Downloaded ${downloadedCount} ${nameT} files`);
+        spinnerFile.succeed(`Downloaded ${downloadedCount} ${filesTitle} files`);
 
         return {
             downloadedCount,
             skippedCount,
             count: downloadedCount + skippedCount,
             filesList,
-            ripCount,
             ripFiles,
         };
     }
 
     /**
      * Process beautify all files
-     * @param folder_type Download folder and  name type files [js/css]
-     * @param nameT Name type file in console
-     * @param files Number of files or files list
+     * @param folderType Download folder and  name type files [js/css]
+     * @param filesTitle Name type file in console
+     * @param files Files list
      */
-    public async BeautifyAllFilesProcess(folder_type: string, nameT: string, files: number | string[]) {
-        console.log(`Beautifly ${nameT} files...`);
+    public async BeautifyAllFilesProcess({
+        folderType,
+        filesTitle,
+        files,
+    }: {
+        folderType: 'js' | 'css';
+        filesTitle: string;
+        files: string[];
+    }) {
+        console.log(`Beautifly ${filesTitle} files...`);
 
         spinnerBeautify.start('Load file..');
 
+        let filesCount = files.length;
         let i = 0;
-        let filesList = await Fs.readdir(this.rootPath + this.resourcePath + folder_type + '/');
-
-        if (Array.isArray(files)) filesList = filesList.filter((e) => files.includes(e));
-
-        const numberFiles = (Array.isArray(files) && files.length) || filesList.length;
-
-        for (const _file of filesList) {
-            const file = `${this.rootPath + this.resourcePath + folder_type}/${_file}`;
-            const beautifyCodeResult = (await Fs.readFile(file)).toString();
+        for (const filePath of files) {
+            const fileName = Path.basename(filePath);
+            const fileFullPath = Path.resolve(this.rootPath, filePath);
+            const contentFile = (await Fs.readFile(fileFullPath)).toString();
 
             {
-                let msg = `Beautify ${nameT} ${gradient.pastel(_file)}`;
+                let msg = `Beautify ${filesTitle} ${gradient.pastel(fileName)}`;
 
                 spinnerBeautify.color = 'green';
                 spinnerBeautify.text = msg;
                 spinnerBeautify.prefixText = gradient.vice(
-                    `[ ${((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
+                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`
                 );
             }
 
-            let data = (folder_type.toLowerCase() == 'css' ? beautifyCSS : beautifyJS)(beautifyCodeResult, {
+            let beautifiedContent = (folderType.toLowerCase() == 'css' ? beautifyCSS : beautifyJS)(contentFile, {
                 indent_with_tabs: true,
                 space_in_empty_paren: true,
                 // Unsafe !
                 // unescape_strings: true,
             });
 
-            data = AppLoader.SafeUnescapeStrings(data);
+            beautifiedContent = AppLoader.SafeUnescapeStrings(beautifiedContent);
 
-            await Fs.writeFile(file, data);
+            await Fs.writeFile(fileFullPath, beautifiedContent);
             i++;
         }
-        spinnerBeautify.succeed(`All ${filesList.length} files beautify`);
+        spinnerBeautify.succeed(`All ${filesCount} files beautify`);
     }
 
     public static SafeUnescapeStrings(data: string) {
@@ -436,74 +462,80 @@ export default class AppLoader {
     /**
      * Process beautify all files
      * @param folder_type Download folder and  name type files [js/css]
-     * @param nameT Name type file in console
+     * @param filesTitle Name type file in console
      * @param files Number of files or files list
      * @param filter Filter by path
      * @param split Split path
      */
-    public async UnpackAllSource(
-        folder_type: string,
-        nameT: string,
-        files: number | string[],
-        filter: string = undefined,
-        split: string = undefined
-    ) {
-        console.log(`Unpack ${nameT} files...`);
+    public async UnpackAllSource({
+        files,
+        filesTitle,
+        filter,
+        split,
+    }: {
+        files: string[];
+        filesTitle: string;
+        filter?: string;
+        split?: string;
+    }) {
+        console.log(`Unpack ${filesTitle} files...`);
 
         spinnerBeautify.start('Try unpack file..');
         spinnerBeautify.prefixText = gradient.vice('[ 0% ]');
 
+        const pathTo = Path.join(this.rootPath, '_safe/source/src/');
+        
+        let filesCount = files.length;
         let i = 0;
-        let filesList = await Fs.readdir(this.rootPath + this.resourcePath + folder_type + '/');
-
-        if (Array.isArray(files)) filesList = filesList.filter((e) => files.includes(e));
-
-        const numberFiles = (Array.isArray(files) && files.length) || filesList.length;
-
-        const pathTo = this.rootPath + '_safe/source/src/';
-
-        for (const _file of filesList) {
-            const file = `${this.rootPath + this.resourcePath + folder_type}/${_file}`;
+        for (const filePath of files) {
+            const fileName = Path.basename(filePath);
+            const fileFullPath = Path.resolve(this.rootPath, filePath);
 
             {
-                let msg = `Unpack ${nameT} ${gradient.pastel(_file)}`;
+                let msg = `Unpack ${filesTitle} ${gradient.pastel(fileName)}`;
 
                 spinnerBeautify.color = 'green';
                 spinnerBeautify.text = msg;
                 spinnerBeautify.prefixText = gradient.vice(
-                    `[ ${((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
+                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`
                 );
             }
 
-            await this.UnpackSource(file, pathTo, filter, split);
+            await this.UnpackSource(fileFullPath, pathTo, filter, split);
             i++;
         }
 
         spinnerBeautify.prefixText = gradient.vice('[ 100% ]');
-        spinnerBeautify.succeed(`All ${filesList.length} files unpacked`);
+        spinnerBeautify.succeed(`All ${files.length} files unpacked`);
     }
 
     /**
      * Unpack source map file
-     * @param file Path to *.map
+     * @param filePath Path to *.map
      * @param output Folder name
      * @param filter Filter by path
      * @param split Split path
      */
-    public async UnpackSource(file: string, output: string, filter?: string, split?: string) {
-        if (!Fs.existsSync(output)) {
-            await Fs.mkdirp(output);
-        }
+    public async UnpackSource(filePath: string, output: string, filter?: string, split?: string) {
+        await Fs.ensureDir(output);
 
         try {
-            const sourceData = JSON.parse((await Fs.readFile(file)).toString());
+            const sourceData = JSON.parse((await Fs.readFile(filePath)).toString()) as {
+                version: number;
+                file: string;
+                mappings: string;
+                sourceRoot: string;
+                names: string[];
+                sources: string[];
+                sourcesContent: string[];
+            };
 
             const files = sourceData.sources
-                .map((path = false, id) => ({
+                .map((path, id) => ({
                     path,
                     id,
                 }))
-                .filter(({ path }) => (filter ? path && path.includes(filter) : true))
+                .filter(({ path }) => (filter ? path?.includes(filter) : true))
                 .map(({ path, id }) => {
                     if (split) {
                         let p1 = path.split(split);
@@ -525,51 +557,49 @@ export default class AppLoader {
                         path = path.replace(/([^a-z0-9/\s]([\/]+)?)(\/\/)?/gi, '').replace(/\s/gi, '_');
                     }
 
-                    if (path[0] == '/' || path[0] == '\\') {
-                        path = path.replace(/^(\/|\\)/, './');
-                    }
+                    // if (path[0] == '/' || path[0] == '\\') {
+                    //     path = path.replace(/^(\/|\\)/, './');
+                    // }
 
                     if (sourceData.sourcesContent && sourceData.sourcesContent[id]) {
-                        return Fs.outputFile(Path.resolve(output, path), sourceData.sourcesContent[id]);
+                        return Fs.outputFile(Path.resolve(Path.join(output, path)), sourceData.sourcesContent[id]);
                     }
                     return undefined;
                 });
 
             await Promise.all(files);
         } catch (error) {
-            console.error(error);
-            // throw error;
+            console.error(`[Error] UnpackSource. (${filePath})`, error);
         }
     }
 
     /**
      */
-    async ExportModulesFiles(filesList: string[], nameWPJ: string = 'webpackJsonp', safeCount?: number) {
-        let exports = [];
+    async ImportModulesAndGetExports(files: string[], nameWPJ: string = 'webpackJsonp', safeCount?: number) {
+        let exports: { id: any; exports: any }[] = [];
         let mediaFiles: string[] = [];
 
         try {
             const WPE = new WebPackExecuter({ nameWPJ });
 
-            if (!filesList || filesList.length == 0) {
-                filesList = await Fs.readdir(`${this.rootPath + this.resourcePath}js`);
+            if (!files || files.length === 0) {
+                const contentPath = Path.resolve(this.rootPath, this.resourcePath, 'js');
+                files = (await Fs.readdir(contentPath)).map((f) => Path.resolve(this.resourcePath, 'js', f));
                 // Like, if there are many files, then make a limit
-                if (safeCount) filesList = filesList.slice(0, safeCount);
+                if (safeCount) files = files.slice(0, safeCount);
             }
 
-            for (const _file of filesList) {
+            for (const filePath of files) {
                 try {
-                    const fileData = await WPE.Include(`${this.rootPath + this.resourcePath}js/`, _file);
-
-                    mediaFiles.push(...this.parseMediaFromJs(fileData));
+                    const fileContent = await WPE.Include(Path.resolve(Path.join(this.rootPath, filePath)));
+                    mediaFiles.push(...this.parseMediaFromJs(fileContent));
                 } catch (error) {
-                    console.log('Failed include ', _file, error.message);
+                    console.log('[Error] WPE. Failed include ', filePath, error.message);
                 }
             }
 
             try {
                 exports = WPE.tryGetStaticFile();
-                exports = exports.filter(({ exports: e }) => typeof e === 'string' && !e.startsWith('data:image'));
             } catch (e) {}
         } catch (error) {
             console.error(error);
@@ -581,6 +611,23 @@ export default class AppLoader {
     parseMediaFromJs(content: string) {
         let res = [];
         const regExp = `\\.p\\s?\\+\\s?"(?<path>(\\/?static)?\\/media\\/([^"/]+))"`;
+        let parse = content.match(new RegExp(regExp, 'g'));
+
+        if (parse) {
+            for (let r of parse) {
+                let {
+                    groups: { path },
+                } = r.match(new RegExp(regExp));
+                res.push(path);
+            }
+        }
+
+        return res;
+    }
+
+    parseMediaFromCss(content: string) {
+        let res = [];
+        const regExp = `url ?\\('?"?(?<path>(\\/?static)?\\/media\\/([^"'/)]+))"?'?\\)`;
         let parse = content.match(new RegExp(regExp, 'g'));
 
         if (parse) {
