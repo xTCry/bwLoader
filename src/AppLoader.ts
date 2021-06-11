@@ -1,6 +1,6 @@
 import Fs from 'fs-extra';
 import Path from 'path';
-import Axios from 'axios';
+import Axios, { AxiosResponse } from 'axios';
 
 import { js as beautifyJS, css as beautifyCSS } from 'js-beautify';
 import jsnice from 'jsnice';
@@ -27,6 +27,8 @@ export default class AppLoader {
     public sURL: string;
     public resourcePath: string;
     public rootPath: string;
+
+    public lastCookie: string;
 
     /**
      * Init class AppLoader
@@ -77,7 +79,7 @@ export default class AppLoader {
 
         url = encodeURI(url);
 
-        let response;
+        let response: AxiosResponse;
         let attemptsCount = attempts;
         try {
             do {
@@ -89,6 +91,8 @@ export default class AppLoader {
                         maxRedirects: 10,
                         timeout: 10e3,
                         headers: {
+                            ...(this.lastCookie && { cookie: this.lastCookie }),
+                            ...(true && { referer: `${this.sURL}/service-worker.js` }),
                             'User-Agent':
                                 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
                             ...(headers || {}),
@@ -114,6 +118,7 @@ export default class AppLoader {
 
         const writer = Fs.createWriteStream(path);
         response.data.pipe(writer);
+        this.lastCookie = response.headers?.cookie;
 
         return new Promise<void>((resolve, reject) => {
             writer.on('finish', async () => {
