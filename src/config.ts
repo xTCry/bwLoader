@@ -131,6 +131,10 @@ export const appsSchema = {
                 format: 'Boolean',
                 default: false,
             },
+            tryAssetManifest: {
+                format: 'Boolean',
+                default: false,
+            },
             resourcePath: {
                 format(val) {},
                 default: undefined,

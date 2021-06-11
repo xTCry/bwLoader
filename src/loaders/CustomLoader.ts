@@ -14,6 +14,8 @@ import Readline from '../readline';
 const STEP_ASK = !true;
 
 export default class CustomLoader extends LoaderClass {
+    protected staticMaps: string[] = [];
+
     public async Start() {
         await this.Step_LoadApp();
         await this.Step_InitAppLoader();
@@ -90,6 +92,11 @@ export default class CustomLoader extends LoaderClass {
         STEP_ASK && (await Readline.question(`[Step_StartDownload] Press [Enter] to continue...`));
 
         await this.Step_StartDownload_Index();
+        if (this.tryAssetManifest) {
+            // asset-manifest.json
+            await this.Step_StartDownload_AssetManifest();
+        }
+
         const resJS = await this.Step_StartDownload_JS();
         const resCSS = await this.Step_StartDownload_CSS();
         // {
@@ -126,6 +133,50 @@ export default class CustomLoader extends LoaderClass {
         } catch (e) {
             console.log('Failed to load index.html', e?.message || e);
             // console.error(e);
+        }
+    }
+
+    protected async Step_StartDownload_AssetManifest() {
+        STEP_ASK && (await Readline.question(`[Step_StartDownload_AssetManifest] Press [Enter] to continue...`));
+
+        let dURL = this.url.includes('index.html') ? this.url.slice(0, this.url.indexOf('index.html')) : this.url;
+
+        try {
+            const file = 'asset-manifest.json';
+            await this.loader.downloadFile({
+                url: `${dURL}/${file}`,
+                filePath: file,
+                rootPath: this.rootPath,
+            });
+
+            const path = Path.resolve(this.rootPath, file);
+            const rData = (await Fs.readFile(path)).toString('utf-8');
+            try {
+                const pasrsed = JSON.parse(rData);
+                const files: string[] = pasrsed.files;
+
+                this.staticJS = [];
+                this.staticCSS = [];
+
+                for (let file of Object.values(files)) {
+                    file = file.startsWith('/') ? file.slice(1) : file;
+                    if (file.endsWith('.js')) {
+                        this.staticJS.push(file);
+                    } else if (file.endsWith('.css')) {
+                        this.staticCSS.push(file);
+                    } else if (file.endsWith('.map')) {
+                        this.staticMaps.push(file);
+                    } else if (file.includes('/media/')) {
+                        this.staticMedia.push(file);
+                    }
+                }
+
+                console.log(`asset-manifest loaded ${Object.values(files).length} files`);
+            } catch (e) {
+                console.log('Failed parsing asset-manifest', e.message);
+            }
+        } catch (e) {
+            console.log('Failed to load asset-manifest.json', e?.message || e);
         }
     }
 
@@ -213,7 +264,7 @@ export default class CustomLoader extends LoaderClass {
             console.log(`Failed load [${resCSS.ripFiles.length}] CSS files!`);
         }
         console.log('\n----');
-        
+
         if (!this.skipMap) {
             const resCSSmap = await this.loader.DownloadChunkProcess({
                 files: this.staticCSS,
@@ -256,12 +307,16 @@ export default class CustomLoader extends LoaderClass {
             ...exports
                 .filter(
                     ({ exports: e }) =>
-                        typeof e === 'string' && !e.startsWith('data:image') && e.includes(`${this.resourcePath}/media/`)
+                        typeof e === 'string' &&
+                        !e.startsWith('data:image') &&
+                        e.includes(`${this.resourcePath}/media/`)
                 )
                 .map(({ exports }) => exports)
         );
 
         listMedia.push(...mediaFiles);
+        listMedia.push(...this.staticMedia);
+
         listMedia = listMedia.filter((val, i, self) => self.indexOf(val) === i);
 
         // console.log(listMedia);
