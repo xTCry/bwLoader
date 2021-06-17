@@ -59,7 +59,7 @@ export default class CustomLoader extends LoaderClass {
             dURL = dURL.slice(0, dURL.indexOf('index.html'));
         }
 
-        this.loader = new AppLoader(dURL, this.resourcePath as string, this.rootPath);
+        this.loader = new AppLoader(dURL, this.resourcePath as string, this.rootPath, this.headers);
         await this.loader.init();
     }
 
@@ -336,7 +336,7 @@ export default class CustomLoader extends LoaderClass {
 
     protected async Step_ToGit() {
         STEP_ASK && (await Readline.question(`[Step_ToGit#Start] Press [Enter] to continue...`));
-        !STEP_ASK && (await Readline.question(`[GIT] Press [Enter] to start commits...`));
+        // !STEP_ASK && (await Readline.question(`[GIT] Press [Enter] to start commits...`));
 
         const gitPath = Path.resolve(this.rootPath, '../togit/');
         const tg = new ToGit(this.config.GIT as xConfig<typeof configSchema.GIT>);

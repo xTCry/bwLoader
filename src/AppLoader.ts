@@ -21,12 +21,13 @@ export interface IDownloadProcessResult {
     count: number;
     filesList: string[];
     ripFiles: { fileName: string; url: string }[];
-};
+}
 
 export default class AppLoader {
     public sURL: string;
     public resourcePath: string;
     public rootPath: string;
+    public headers: any;
 
     public lastCookie: string;
 
@@ -36,10 +37,11 @@ export default class AppLoader {
      * @param resourcePath path to site resources
      * @param rootPath Download folder path
      */
-    constructor(sURL: string, resourcePath: string, rootPath: string) {
+    constructor(sURL: string, resourcePath: string, rootPath: string, headers: any) {
         this.sURL = sURL;
         this.resourcePath = resourcePath;
         this.rootPath = rootPath;
+        this.headers = headers;
     }
 
     public async init() {
@@ -91,8 +93,9 @@ export default class AppLoader {
                         maxRedirects: 10,
                         timeout: 10e3,
                         headers: {
-                            ...(this.lastCookie && { cookie: this.lastCookie }),
                             ...(true && { referer: `${this.sURL}/service-worker.js` }),
+                            ...(this.headers),
+                            ...(this.lastCookie && { cookie: this.lastCookie }),
                             'User-Agent':
                                 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
                             ...(headers || {}),
@@ -489,7 +492,7 @@ export default class AppLoader {
         spinnerBeautify.prefixText = gradient.vice('[ 0% ]');
 
         const pathTo = Path.join(this.rootPath, '_safe/source/src/');
-        
+
         let filesCount = files.length;
         let i = 0;
         for (const filePath of files) {

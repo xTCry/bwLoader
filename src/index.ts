@@ -25,6 +25,7 @@ import { sleep } from './tools';
             } catch (error) {
                 console.log('App loader error', app.name, error.message);
             }
+            startTime = Date.now();
         }
 
         if (WATCHDOG) {

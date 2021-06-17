@@ -16,6 +16,7 @@ export default abstract class Loader {
     public forceDownload: boolean;
     public clearCache: boolean;
     public tryAssetManifest: boolean;
+    public headers: any;
 
     public staticName?: string;
     public staticJS: string[] = [];
@@ -43,6 +44,7 @@ export default abstract class Loader {
         forceDownload = true,
         clearCache = true,
         tryAssetManifest = false,
+        headers = {},
     }: {
         name: string;
         url: string;
@@ -53,6 +55,7 @@ export default abstract class Loader {
         forceDownload?: boolean;
         clearCache?: boolean;
         tryAssetManifest?: boolean;
+        headers?: any;
     }) {
         this.rootPath = `${this.config.PATH_DOWNLOAD}/${name}/app/`;
 
@@ -66,6 +69,7 @@ export default abstract class Loader {
         this.forceDownload = forceDownload;
         this.clearCache = clearCache;
         this.tryAssetManifest = tryAssetManifest;
+        this.headers = headers;
 
         console.log(`\n\n==================================\nApplication loader initialized for: ${name}`);
     }

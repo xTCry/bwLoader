@@ -135,6 +135,10 @@ export const appsSchema = {
                 format: 'Boolean',
                 default: false,
             },
+            headers: {
+                format: 'Object',
+                default: {},
+            },
             resourcePath: {
                 format(val) {},
                 default: undefined,
