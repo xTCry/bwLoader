@@ -153,13 +153,13 @@ export default class CustomLoader extends LoaderClass {
             const rData = (await Fs.readFile(path)).toString('utf-8');
             try {
                 const pasrsed = JSON.parse(rData);
-                const files: string[] = pasrsed.files;
+                const files: Record<string, string> = pasrsed.files;
 
                 this.staticJS = [];
                 this.staticCSS = [];
 
                 for (let file of Object.values(files)) {
-                    file = file.startsWith('/') ? file.slice(1) : file;
+                    file = file.startsWith('/') ? file.slice(1) : file.startsWith('./') ? file.slice(2) : file;
                     if (file.endsWith('.js')) {
                         this.staticJS.push(file);
                     } else if (file.endsWith('.css')) {
