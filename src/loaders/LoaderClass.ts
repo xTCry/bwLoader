@@ -16,6 +16,7 @@ export default abstract class Loader {
     public forceDownload: boolean;
     public clearCache: boolean;
     public tryAssetManifest: boolean;
+    public useExistsIndexHtml: boolean;
     public headers: any;
 
     public staticName?: string;
@@ -44,6 +45,7 @@ export default abstract class Loader {
         forceDownload = true,
         clearCache = true,
         tryAssetManifest = false,
+        useExistsIndexHtml = false,
         headers = {},
     }: {
         name: string;
@@ -55,13 +57,14 @@ export default abstract class Loader {
         forceDownload?: boolean;
         clearCache?: boolean;
         tryAssetManifest?: boolean;
+        useExistsIndexHtml?: boolean;
         headers?: any;
     }) {
         this.rootPath = `${this.config.PATH_DOWNLOAD}/${name}/app/`;
 
         this.name = name;
         this.url = url;
-        this.resourcePath = resourcePath;
+        this.resourcePath = ((e) => (typeof e === 'string' ? (e.startsWith('/') ? `.${e}` : e) : e))(resourcePath);
         this.wpName = wpName;
         this.togit = togit;
         this.skipMap = skipMap;
@@ -69,6 +72,7 @@ export default abstract class Loader {
         this.forceDownload = forceDownload;
         this.clearCache = clearCache;
         this.tryAssetManifest = tryAssetManifest;
+        this.useExistsIndexHtml = useExistsIndexHtml;
         this.headers = headers;
 
         console.log(`\n\n==================================\nApplication loader initialized for: ${name}`);

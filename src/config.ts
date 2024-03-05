@@ -135,6 +135,10 @@ export const appsSchema = {
                 format: 'Boolean',
                 default: false,
             },
+            useExistsIndexHtml: {
+                format: 'Boolean',
+                default: false,
+            },
             headers: {
                 format: 'Object',
                 default: {},

@@ -8,6 +8,10 @@ export const ComName = () =>
         capitalize: 'all',
     });
 
+export function combineURLs(baseURL: string, relativeURL: string) {
+    return relativeURL ? baseURL.replace(/\/+$/, '') + '/' + relativeURL.replace(/^\/+/, '') : baseURL;
+}
+
 export type xConfig<T> = {
     [P in keyof T]: any;
 };

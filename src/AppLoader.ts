@@ -7,7 +7,7 @@ import jsnice from 'jsnice';
 
 import ora from 'ora';
 import gradient from 'gradient-string';
-import { sleep } from './tools';
+import { sleep, combineURLs } from './tools';
 import WebPackExecuter from './WebPackExecuter';
 
 const spinnerFile = ora(),
@@ -93,8 +93,8 @@ export default class AppLoader {
                         maxRedirects: 10,
                         timeout: 10e3,
                         headers: {
-                            ...(true && { referer: `${this.sURL}/service-worker.js` }),
-                            ...(this.headers),
+                            ...(true && { referer: combineURLs(this.sURL, 'worker.js') }),
+                            ...this.headers,
                             ...(this.lastCookie && { cookie: this.lastCookie }),
                             'User-Agent':
                                 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
@@ -203,11 +203,11 @@ export default class AppLoader {
             {
                 spinnerFile.text = msg;
                 spinnerFile.prefixText = gradient.vice(
-                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`
+                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`,
                 );
             }
 
-            let url = `${this.sURL}/${filePath.replace(/^\/|\/$/g, '')}`;
+            let url = combineURLs(this.sURL, filePath.replace(/^\/|\/$/g, ''));
             try {
                 await this.downloadFile({
                     url,
@@ -299,8 +299,18 @@ export default class AppLoader {
 
         let i = 0;
         for (const filePath1 of files) {
-            const filePath = `${filePath1}${isMap ? '.map' : ''}`;
-            const fileName = Path.basename(filePath);
+            const filePathOrig = `${filePath1}${isMap ? '.map' : ''}`;
+            const fileName = Path.basename(filePathOrig);
+
+            const extension = Path.extname(filePath1).slice(1);
+
+            let filePath = filePathOrig;
+            if (!filePathOrig.includes(`${extension}/`)) {
+                let paths = filePathOrig.split('/');
+                //`${`${extension}/`}${filePathOrig}`;
+                const file = paths.pop();
+                filePath = [...paths, extension, file].join('/');
+            }
 
             if (!skipExistFiles && (existFiles.includes(fileName) || blockFiles.includes(filePath))) {
                 skippedCount++;
@@ -313,11 +323,11 @@ export default class AppLoader {
             {
                 spinnerFile.text = msg;
                 spinnerFile.prefixText = gradient.vice(
-                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`
+                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`,
                 );
             }
 
-            let url = `${this.sURL}/${filePath}`;
+            let url = combineURLs(this.sURL, filePathOrig);
             try {
                 await this.downloadFile({
                     url,
@@ -345,7 +355,7 @@ export default class AppLoader {
                 !isMap &&
                     console.log(
                         '\nDownloadError',
-                        error?.statusText ? `${error.statusText} (file: ${fileName})` : error
+                        error?.statusText ? `${error.statusText} (file: ${fileName})` : error,
                     );
                 if (!error || [403, 404, 500].includes(error.status)) {
                     blockFiles.push(filePath);
@@ -403,7 +413,7 @@ export default class AppLoader {
                 spinnerBeautify.color = 'green';
                 spinnerBeautify.text = msg;
                 spinnerBeautify.prefixText = gradient.vice(
-                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`
+                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`,
                 );
             }
 
@@ -458,7 +468,7 @@ export default class AppLoader {
             data.replace(regexp, (match, e) => {
                 let code = parseInt(e, 16);
                 return check(code, e) ? String.fromCharCode(code) : match;
-            })
+            }),
         );
 
         // fix %2F
@@ -505,7 +515,7 @@ export default class AppLoader {
                 spinnerBeautify.color = 'green';
                 spinnerBeautify.text = msg;
                 spinnerBeautify.prefixText = gradient.vice(
-                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`
+                    `[ ${((((i * 100) / filesCount) | 0) + 1).toString().padStart(3, '0')}% ]`,
                 );
             }
 
@@ -674,7 +684,7 @@ export default class AppLoader {
 
         // [ js files, css files, media files ]
         const filesLists = await Promise.all(
-            staticFolders.map((el) => Fs.readdir(Path.resolve(this.rootPath, this.resourcePath, el)))
+            staticFolders.map((el) => Fs.readdir(Path.resolve(this.rootPath, this.resourcePath, el))),
         );
 
         const renamedFilesHistory = {};
@@ -704,7 +714,7 @@ export default class AppLoader {
                     spinnerBeautify.color = 'green';
                     spinnerBeautify.text = msg;
                     spinnerBeautify.prefixText = gradient.vice(
-                        `[ ${((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
+                        `[ ${((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0')}% ]`,
                     );
                 }
 
@@ -759,7 +769,7 @@ export default class AppLoader {
                     spinnerBeautify.color = 'green';
                     spinnerBeautify.text = msg;
                     spinnerBeautify.prefixText = gradient.vice(
-                        `[ ${((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0')}% ]`
+                        `[ ${((((i * 100) / numberFiles) | 0) + 1).toString().padStart(3, '0')}% ]`,
                     );
                 }
 
@@ -818,7 +828,7 @@ export default class AppLoader {
             types: false,
             rename: true,
             suggest: false,
-        }
+        },
     ) {
         options = { pretty: true, types: false, rename: true, suggest: false, ...options };
 

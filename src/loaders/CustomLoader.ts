@@ -3,7 +3,7 @@ import Fs from 'fs-extra';
 import { html as beautifyHTML } from 'js-beautify';
 
 import { configSchema } from '../config';
-import { ComName, xConfig } from '../tools';
+import { ComName, xConfig, combineURLs } from '../tools';
 
 import LoaderClass from './LoaderClass';
 import { getMe } from '../AppReader';
@@ -30,14 +30,20 @@ export default class CustomLoader extends LoaderClass {
     protected async Step_LoadApp() {
         STEP_ASK && (await Readline.question(`[Step_LoadApp] Press [Enter] to continue...`));
 
+        let opts: any = { url: this.url };
+        if (this.useExistsIndexHtml) {
+            opts = { html: await Fs.readFile(Path.resolve(this.rootPath, 'index.html')) };
+        }
         // Load site modules
-        const appDataS = await getMe(this.url);
+        const appDataS = await getMe(opts);
         let {
             static: { js: staticJS, css: staticCSS },
             js,
             css,
             staticName,
         } = appDataS.parsed;
+
+        // console.log('appDataS.parsed', appDataS.parsed);
 
         this.staticName = staticName;
         this.staticJS = staticJS;
@@ -57,6 +63,8 @@ export default class CustomLoader extends LoaderClass {
 
         if (dURL.includes('index.html')) {
             dURL = dURL.slice(0, dURL.indexOf('index.html'));
+            // const { hostname, protocol } = new URL(dURL);
+            // dURL = `${protocol}//${hostname}`;
         }
 
         this.loader = new AppLoader(dURL, this.resourcePath as string, this.rootPath, this.headers);
@@ -69,29 +77,38 @@ export default class CustomLoader extends LoaderClass {
         // Cleaning
         const existOldFiles = await Fs.readdir(this.rootPath);
         for (const fileName of existOldFiles) {
-            if (fileName != '.git') {
-                await Fs.remove(this.rootPath + fileName);
+            if (fileName == '.git') {
+                continue;
             }
+            if (this.useExistsIndexHtml && fileName == 'index.html') {
+                continue;
+            }
+            await Fs.remove(this.rootPath + fileName);
         }
 
-        // Clear cache if need...
-        if (this.clearCache) {
-            console.log('Clear all files...');
-            await Fs.remove(this.rootPath);
-        }
+        // TODO: add check `this.useExistsIndexHtml`
+        // // Clear cache if need...
+        // if (this.clearCache) {
+        //     console.log('Clear all files...');
+        //     await Fs.remove(this.rootPath);
+        // }
 
         // Create default resource folders
         for await (let el of ['js', 'css', 'media'].map((el) =>
-            Path.resolve(this.rootPath, <string>this.resourcePath, el)
+            Path.resolve(this.rootPath, <string>this.resourcePath, el),
         )) {
+            // console.log('el', el);
             await Fs.mkdirp(el);
         }
+        // process.exit(0);
     }
 
     protected async Step_StartDownload() {
         STEP_ASK && (await Readline.question(`[Step_StartDownload] Press [Enter] to continue...`));
 
-        await this.Step_StartDownload_Index();
+        if (this.useExistsIndexHtml !== true) {
+            await this.Step_StartDownload_Index();
+        }
         if (this.tryAssetManifest) {
             // asset-manifest.json
             await this.Step_StartDownload_AssetManifest();
@@ -118,7 +135,7 @@ export default class CustomLoader extends LoaderClass {
         try {
             const file = 'index.html';
             await this.loader.downloadFile({
-                url: `${dURL}/${file}`,
+                url: combineURLs(dURL, file),
                 filePath: file,
                 rootPath: this.rootPath,
             });
@@ -144,7 +161,7 @@ export default class CustomLoader extends LoaderClass {
         try {
             const file = 'asset-manifest.json';
             await this.loader.downloadFile({
-                url: `${dURL}/${file}`,
+                url: combineURLs(dURL, file),
                 filePath: file,
                 rootPath: this.rootPath,
             });
@@ -154,12 +171,29 @@ export default class CustomLoader extends LoaderClass {
             try {
                 const pasrsed = JSON.parse(rData);
                 const files: Record<string, string> = pasrsed.files;
+                const entrypoints: string[] = pasrsed.entrypoints;
 
                 this.staticJS = [];
                 this.staticCSS = [];
 
+                const sliceLen = (() => {
+                    let len = 0;
+                    for (const point of entrypoints) {
+                        for (const file in files) {
+                            if (files[file].endsWith(point)) {
+                                const pos = files[file].search(point);
+                                len = Math.max(len, pos);
+                                break;
+                            }
+                        }
+                    }
+                    return len;
+                })();
+
                 for (let file of Object.values(files)) {
+                    file = file.slice(sliceLen);
                     file = file.startsWith('/') ? file.slice(1) : file.startsWith('./') ? file.slice(2) : file;
+
                     if (file.endsWith('.js')) {
                         this.staticJS.push(file);
                     } else if (file.endsWith('.css')) {
@@ -309,9 +343,9 @@ export default class CustomLoader extends LoaderClass {
                     ({ exports: e }) =>
                         typeof e === 'string' &&
                         !e.startsWith('data:image') &&
-                        e.includes(`${this.resourcePath}/media/`)
+                        e.includes(`${this.resourcePath}/media/`),
                 )
-                .map(({ exports }) => exports)
+                .map(({ exports }) => exports),
         );
 
         listMedia.push(...mediaFiles);
@@ -381,11 +415,11 @@ export default class CustomLoader extends LoaderClass {
         // Create info.json
         await Fs.writeFile(
             Path.resolve(gitPath, 'info.json'),
-            JSON.stringify({ name: this.name, url: this.url }, null, 2)
+            JSON.stringify({ name: this.name, url: this.url }, null, 2),
         );
         await Fs.writeFile(
             Path.resolve(gitPath, 'README.md'),
-            `# bwLoader - ${this.name}\n\n> URL: ${this.url}\n\nThis repository is automatically generated by [@xTCry/bwLoader](https://github.com/xTCry/bwLoader)`
+            `# bwLoader - ${this.name}\n\n> URL: ${this.url}\n\nThis repository is automatically generated by [@xTCry/bwLoader](https://github.com/xTCry/bwLoader)`,
         );
 
         STEP_ASK && (await Readline.question(`[Step_ToGit#CacheToGit] Press [Enter] to continue...`));
@@ -399,7 +433,7 @@ export default class CustomLoader extends LoaderClass {
 
         let issetSource = await this.loader.CopyFolderToGit(
             Path.resolve(this.rootPath, '_safe'),
-            Path.resolve(gitPath, 'unpack')
+            Path.resolve(gitPath, 'unpack'),
         );
         if (issetSource) {
             diffs = await tg.diff();
@@ -409,7 +443,7 @@ export default class CustomLoader extends LoaderClass {
         }
 
         STEP_ASK && (await Readline.question(`[Step_ToGit#Push] Press [Enter] to continue...`));
-        !STEP_ASK && (await Readline.question(`[GIT] Press [Enter] to push...`));
+        // !STEP_ASK && (await Readline.question(`[GIT] Press [Enter] to push...`));
         await tg.push();
     }
 }

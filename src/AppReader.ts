@@ -11,10 +11,13 @@ export interface IExtrStr2Obj {
 }
 
 export default class AppReader {
-    constructor(public url: string) {}
+    constructor(public url?: string, public html?: string) {}
 
     async start() {
-        let { data: html } = await AppReader.getPage(this.url);
+        let html = this.html;
+        if (!html) {
+            ({ data: html } = await AppReader.getPage(this.url!));
+        }
 
         let data = AppReader.getResources(html);
         let res = AppReader.parseResources(data);
@@ -25,10 +28,7 @@ export default class AppReader {
         };
     }
 
-    static parseResources(data: {
-        js: { src?: string; data?: string }[];
-        css: { href: string }[];
-    }): {
+    static parseResources(data: { js: { src?: string; data?: string }[]; css: { href: string }[] }): {
         js: string[];
         css: string[];
         static: {
@@ -46,8 +46,10 @@ export default class AppReader {
         const regexChunkTemplate = (type) =>
             new RegExp(
                 `("static\\/${type}\\/"\\+\\({(?<names>.*)}\\[(.*)\\]\\|\\|(.*)\\)\\+"\\."\\+{)(?<hashes>.*)(}\\[(.*)\\]\\+"\\.chunk\\.${type}")`,
-                'i'
+                'i',
             );
+
+        // TODO: rewrite code without deep '.chunk' parsing !
 
         // Search for chunks (loadable)
         const chunksJSdata = contentWPJ?.match(regexChunkTemplate('js'))?.groups || {};
@@ -56,10 +58,11 @@ export default class AppReader {
         const chunkJSObj = AppReader.extactStrToObject(chunksJSdata, '.chunk');
         const chunkCSSObj = AppReader.extactStrToObject(chunksCSSdata, '.chunk');
 
-        const regexTemplate = (type) =>
+        const regexTemplate = (type: 'css' | 'js' | 'media') =>
             new RegExp(
-                `(\\.\\/)?(?<_static>[a-z]+)(\\/${type}\\/)?(?<code>[A-b0-9\\-]+)[\\.-](?<name>[A-b0-9\\-]+(\\.chunk)?)\\.${type}`,
-                'i'
+                // `(\\.\\/)?(?<_static>[a-z]+)(\\/${type}\\/)?(?<code>[A-b0-9\\-]+)[\\.-](?<name>[A-b0-9\\-]+(\\.chunk)?)\\.${type}`,
+                `(\\.\\/)?((?<_static>[a-z]+)?\\/)?(?<hasFolder>${type}\\/)?(?<code>[A-b0-9_.\\-]+)[\\.-](?<name>[A-b0-9\\-.]+)\\.${type}`,
+                'i',
             );
 
         const regexChunkJS = regexTemplate('js');
@@ -67,21 +70,29 @@ export default class AppReader {
 
         // ! bad practice of using this crutch. Remake
         let staticName = '';
-        const getMatch = (data: string, regex) => {
-            let { _static, code, name } = data.match(regex)?.groups;
-            staticName = staticName || _static;
-            return { code, name, _static };
+        const getMatch = (src: string, regex: RegExp) => {
+            let { _static, hasFolder, code, name } = src.match(regex)?.groups;
+            // console.log('• regexChunkJS', src, ' => ', { code, name, hasFolder, _static });
+            console.log('• SET staticName', staticName);
+
+            staticName ||= _static || '';
+            return { code, hasFolder, name, _static };
         };
 
         // Get chunks
 
         const listJS = data.js.filter((e) => e.hasOwnProperty('src'));
         const otherJS: string[] = [];
+        // !fix: bad idea usin object. => Use array
         const chunkJS: ChunkFiles = {};
+        let chunkJSHasFolder = false;
+
         for (let { src } of listJS) {
             if (src.includes('://')) continue;
             if (!src.includes('.min.') && regexChunkJS.test(src)) {
-                let { code, name, _static } = getMatch(src, regexChunkJS);
+                let { code, name, hasFolder, _static } = getMatch(src, regexChunkJS);
+
+                chunkJSHasFolder = !!hasFolder;
                 if (!_static || staticName) {
                     chunkJS[code] = `${code}.${name}`;
                 }
@@ -92,11 +103,15 @@ export default class AppReader {
 
         const listCSS = data.css.filter((e) => e.hasOwnProperty('href'));
         const otherCSS: string[] = [];
+        // !fix: bad idea usin object. => Use array
         const chunkCSS: ChunkFiles = {};
+        let chunkCSSHasFolder = false;
+
         for (let { href } of listCSS) {
             if (href.includes('://')) continue;
             if (regexChunkCSS.test(href)) {
-                let { code, name, _static } = getMatch(href, regexChunkCSS);
+                let { code, name, hasFolder, _static } = getMatch(href, regexChunkCSS);
+                chunkCSSHasFolder = !!hasFolder;
                 if (!_static || staticName) {
                     chunkCSS[code] = `${code}.${name}`;
                 }
@@ -105,12 +120,12 @@ export default class AppReader {
             }
         }
 
-        let js = [...Object.values(chunkJS), ...[], ...Object.values(chunkJSObj.result)].map(
-            (e) => `${staticName}/js/${e}.js`
-        );
-        let css = [...Object.values(chunkCSS), ...Object.values(chunkCSSObj.result)].map(
-            (e) => `${staticName}/css/${e}.css`
-        );
+        const createPath = (type: 'js' | 'css', e: string) =>
+            `${((s) => (s ? `/${s}` : ''))(
+                `${staticName}${(type === 'js' ? chunkJSHasFolder : chunkCSSHasFolder) ? `/${type}` : ''}`,
+            )}${e}.${type}`;
+        let js = [...Object.values(chunkJS), ...Object.values(chunkJSObj.result)].map((e) => createPath('js', e));
+        let css = [...Object.values(chunkCSS), ...Object.values(chunkCSSObj.result)].map((e) => createPath('css', e));
 
         return {
             js: otherJS,
@@ -123,7 +138,7 @@ export default class AppReader {
         };
     }
 
-    static async getPage(url) {
+    static async getPage(url: string) {
         let response = undefined;
         let attemptsCount = 3;
         try {
@@ -192,7 +207,7 @@ export default class AppReader {
 
     static extactStrToObject(
         { names: strNames = '', hashes: strHashes = '' },
-        additionalPostfix: string = ''
+        additionalPostfix: string = '',
     ): IExtrStr2Obj {
         strNames = strNames.replace(/['"]+/g, '');
         strHashes = strHashes.replace(/['"]+/g, '');
@@ -221,7 +236,7 @@ export default class AppReader {
     }
 }
 
-export const getMe = async (url) => {
-    const reader = new AppReader(url);
+export const getMe = async (opts: { url?: string; html?: string }) => {
+    const reader = new AppReader(opts.url, opts.html);
     return await reader.start();
 };
