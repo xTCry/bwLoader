@@ -4,8 +4,8 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=windows,visualstudiocode,node
 
 downloaded/
-config.json
-apps*.json
+config.json*
+apps*.json*
 
 ### Node ###
 # Logs

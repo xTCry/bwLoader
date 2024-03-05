@@ -4,7 +4,7 @@ import Fs from 'fs-extra';
 import { parse } from 'comment-json';
 
 const configPathFile = './config.json';
-const appsPathFile = './apps.json';
+const appsPathFile = './apps.jsonc';
 const forceGIT = false;
 
 export const configSchema = {
@@ -169,7 +169,7 @@ convict.addFormat(require('convict-format-with-validator').url);
 
 convict.addParser({
     parse: (str) => JSON.parse(JSON.stringify(parse(str))),
-    extension: 'json',
+    extension: 'jsonc',
 });
 
 export const config = convict(configSchema);
