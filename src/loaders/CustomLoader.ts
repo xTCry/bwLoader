@@ -52,7 +52,7 @@ export default class CustomLoader extends LoaderClass {
         this.otherCSS = css;
 
         if (this.resourcePath === true) {
-            this.resourcePath = staticName;
+            this.resourcePath = staticName || './';
         }
     }
 
