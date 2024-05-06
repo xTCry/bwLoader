@@ -339,7 +339,7 @@ export default class AppLoader {
 
                 // Test correct MAP file
                 if (isMap) {
-                    const pf = Path.resolve(this.rootPath, filePath);
+                    const pf = Path.resolve(Path.join(this.rootPath, filePath));
                     try {
                         JSON.parse((await Fs.readFile(pf)).toString());
                     } catch (error) {
@@ -404,7 +404,8 @@ export default class AppLoader {
         let i = 0;
         for (const filePath of files) {
             const fileName = Path.basename(filePath);
-            const fileFullPath = Path.resolve(this.rootPath, filePath);
+            const fileFullPath = Path.resolve(Path.join(this.rootPath, filePath));
+
             const contentFile = (await Fs.readFile(fileFullPath)).toString();
 
             {
@@ -507,7 +508,7 @@ export default class AppLoader {
         let i = 0;
         for (const filePath of files) {
             const fileName = Path.basename(filePath);
-            const fileFullPath = Path.resolve(this.rootPath, filePath);
+            const fileFullPath = Path.resolve(Path.join(this.rootPath, filePath));
 
             {
                 let msg = `Unpack ${filesTitle} ${gradient.pastel(fileName)}`;
@@ -611,8 +612,9 @@ export default class AppLoader {
                 try {
                     const fileContent = await WPE.Include(Path.resolve(Path.join(this.rootPath, filePath)));
                     mediaFiles.push(...this.parseMediaFromJs(fileContent));
-                } catch (error) {
-                    console.log('[Error] WPE. Failed include ', filePath, error.message);
+                } catch (err) {
+                    console.error(err);
+                    console.log('[Error] WPE. Failed include ', filePath, err.message);
                 }
             }
 
