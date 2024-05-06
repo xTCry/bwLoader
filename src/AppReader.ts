@@ -122,7 +122,7 @@ export default class AppReader {
 
         const createPath = (type: 'js' | 'css', e: string) =>
             `${((s) => (s ? `/${s}` : ''))(
-                `${staticName}${(type === 'js' ? chunkJSHasFolder : chunkCSSHasFolder) ? `/${type}` : ''}`,
+                `${staticName}/${(type === 'js' ? chunkJSHasFolder : chunkCSSHasFolder) ? type : ''}`,
             )}${e}.${type}`;
         let js = [...Object.values(chunkJS), ...Object.values(chunkJSObj.result)].map((e) => createPath('js', e));
         let css = [...Object.values(chunkCSS), ...Object.values(chunkCSSObj.result)].map((e) => createPath('css', e));
