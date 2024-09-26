@@ -120,6 +120,15 @@ export default class CustomLoader extends LoaderClass {
             await this.Step_StartDownload_AssetManifest();
         }
 
+        if (this.additionalStatic) {
+            if (this.additionalStatic.js && this.additionalStatic.js.length > 0) {
+                this.staticJS.push(...this.additionalStatic.js);
+            }
+            if (this.additionalStatic.css && this.additionalStatic.css.length > 0) {
+                this.staticCSS.push(...this.additionalStatic.css);
+            }
+        }
+
         const resJS = await this.Step_StartDownload_JS();
         const resCSS = await this.Step_StartDownload_CSS();
         // {

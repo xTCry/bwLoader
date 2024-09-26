@@ -135,6 +135,26 @@ export const appsSchema = {
                 format: 'Boolean',
                 default: false,
             },
+            additionalStatic: {
+                format: 'Object',
+                default: {},
+                children: {
+                    js: {
+                        format: 'array',
+                        default: null,
+                        children: {
+                            format: 'String',
+                        },
+                    },
+                    css: {
+                        format: 'array',
+                        default: null,
+                        children: {
+                            format: 'String',
+                        },
+                    },
+                },
+            },
             useExistsIndexHtml: {
                 format: 'Boolean',
                 default: false,

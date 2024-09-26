@@ -26,6 +26,7 @@ export default abstract class Loader {
     public otherJS: string[] = [];
     public staticMedia: string[] = [];
     public otherCSS: string[] = [];
+    public additionalStatic: { js?: string[]; css?: string[] } = {};
 
     constructor(public config: typeof configSchema) {}
 
@@ -48,6 +49,7 @@ export default abstract class Loader {
         tryAssetManifest = false,
         useExistsIndexHtml = false,
         headers = {},
+        additionalStatic = {},
     }: {
         name: string;
         url: string;
@@ -60,6 +62,7 @@ export default abstract class Loader {
         tryAssetManifest?: boolean;
         useExistsIndexHtml?: boolean;
         headers?: Record<string, string>;
+        additionalStatic?: { js?: string[]; css?: string[] };
     }) {
         this.rootPath = `${this.config.PATH_DOWNLOAD}/${name}/app/`;
 
@@ -75,6 +78,7 @@ export default abstract class Loader {
         this.tryAssetManifest = tryAssetManifest;
         this.useExistsIndexHtml = useExistsIndexHtml;
         this.headers = headers;
+        this.additionalStatic = additionalStatic;
 
         console.log(`\n\n==================================\nApplication loader initialized for: ${name}`);
     }
