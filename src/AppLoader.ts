@@ -372,6 +372,7 @@ export default class AppLoader {
             i++;
         }
 
+        spinnerFile.prefixText = gradient.vice('[ 100% ]');
         spinnerFile.succeed(`Downloaded ${downloadedCount} ${filesTitle} files`);
 
         return {
