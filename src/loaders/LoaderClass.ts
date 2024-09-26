@@ -17,7 +17,7 @@ export default abstract class Loader {
     public clearCache: boolean;
     public tryAssetManifest: boolean;
     public useExistsIndexHtml: boolean;
-    public headers: any;
+    public headers: Record<string, string>;
 
     public delimChar?: string;
     public staticName?: string;
@@ -59,7 +59,7 @@ export default abstract class Loader {
         clearCache?: boolean;
         tryAssetManifest?: boolean;
         useExistsIndexHtml?: boolean;
-        headers?: any;
+        headers?: Record<string, string>;
     }) {
         this.rootPath = `${this.config.PATH_DOWNLOAD}/${name}/app/`;
 

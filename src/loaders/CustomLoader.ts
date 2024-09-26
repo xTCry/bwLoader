@@ -34,6 +34,7 @@ export default class CustomLoader extends LoaderClass {
         if (this.useExistsIndexHtml) {
             opts = { html: await Fs.readFile(Path.resolve(this.rootPath, 'index.html')) };
         }
+        opts.headers = this.headers;
         // Load site modules
         const appDataS = await getMe(opts);
         let {

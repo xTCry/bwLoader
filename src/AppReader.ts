@@ -11,12 +11,12 @@ export interface IExtrStr2Obj {
 }
 
 export default class AppReader {
-    constructor(public url?: string, public html?: string) {}
+    constructor(public url?: string, public html?: string, public headers?: Record<string, string>) {}
 
     async start() {
         let html = this.html;
         if (!html) {
-            ({ data: html } = await AppReader.getPage(this.url!));
+            ({ data: html } = await AppReader.getPage(this.url!, this.headers));
         }
 
         let data = AppReader.getResources(html);
@@ -161,7 +161,7 @@ export default class AppReader {
         };
     }
 
-    static async getPage(url: string) {
+    static async getPage(url: string, headers?: Record<string, string>) {
         let response = undefined;
         let attemptsCount = 3;
         try {
@@ -170,6 +170,13 @@ export default class AppReader {
                     response = axios(url, {
                         timeout: 10e3,
                         maxRedirects: 10,
+                        headers: {
+                            'Accept-Encoding': 'gzip, deflate, br, zstd',
+                            'sec-fetch-dest': 'iframe',
+                            'sec-fetch-mode': 'navigate',
+                            'sec-fetch-site': 'cross-site',
+                            ...headers,
+                        },
                     });
                     attemptsCount = 0;
                 } catch (err) {
@@ -262,7 +269,7 @@ export default class AppReader {
     }
 }
 
-export const getMe = async (opts: { url?: string; html?: string }) => {
-    const reader = new AppReader(opts.url, opts.html);
+export const getMe = async (opts: { url?: string; html?: string; headers?: Record<string, string> }) => {
+    const reader = new AppReader(opts.url, opts.html, opts.headers);
     return await reader.start();
 };
