@@ -1,6 +1,7 @@
 import Fs from 'fs-extra';
 import _Window from 'window';
 import safeEval from 'safe-eval';
+// import vm from 'vm';
 
 /* // The module cache
 let __webpack_module_cache__ = {};
@@ -209,11 +210,54 @@ export default class WebPackExecuter {
      */
     async Include(path: string) {
         const dataFile = (await Fs.readFile(path)).toString();
-        safeEval(dataFile, {
-            window: {
-                ...this.window,
+
+        const globalDef = {
+            ...this.window,
+            // window: { ...this.window },
+            Image: this.window.Image || function () {},
+            Audio: this.window.Audio || function () {},
+            Function: this.window.Function || function () {},
+            Element: this.window.Element || function () {},
+            Event: this.window.Event || function () {},
+        };
+
+        const windowProxyObject = new Proxy(globalDef, {
+            get: function (targetAsWindow, property) {
+                // Возвращаем свойство объекта window
+                return targetAsWindow[property];
+            },
+            set(targetAsWindow, property, value) {
+                // Устанавливаем свойство объекта window
+                targetAsWindow[property] = value;
+                // Устанавливаем свойство в глобальный контекст
+                globalDef[property] = value;
+                return true;
             },
         });
+        globalDef.window = windowProxyObject;
+        const globalProxyObject = new Proxy(globalDef, {
+            get: function (targetAsGlobal, property) {
+                // console.log('GET=>', property /* , property */);
+
+                // Возвращаем свойство объекта window
+                if (!(property in targetAsGlobal)) {
+                    return targetAsGlobal.window[property];
+                }
+                // Если свойство отсутствует в объекте window, возвращаем его из глобального контекста
+                return targetAsGlobal[property];
+            },
+            set(targetAsGlobal, property, value) {
+                // console.log('SET=>', property /* , property */);
+                // Устанавливаем свойство объекта window
+                targetAsGlobal[property] = value;
+                return true;
+            },
+        });
+        safeEval(dataFile, globalProxyObject);
+
+        // vm.createContext(globalDef);
+        // vm.runInContext(dataFile, globalDef);
+
         return dataFile;
     }
 
