@@ -159,6 +159,10 @@ export const appsSchema = {
                 format: 'Boolean',
                 default: false,
             },
+            useWPA: {
+                format: 'Boolean',
+                default: true,
+            },
             headers: {
                 format: 'Object',
                 default: {},

@@ -341,29 +341,36 @@ export default class CustomLoader extends LoaderClass {
         STEP_ASK && (await Readline.question(`[Step_StartDownload_Media] Press [Enter] to continue...`));
 
         let listMedia: string[] = [];
-        const { exports, mediaFiles } = await this.loader.ImportModulesAndGetExports(resJS.filesList, this.wpName, 80);
+        if (this.useWPA) {
+            const { exports, mediaFiles } = await this.loader.ImportModulesAndGetExports(
+                resJS.filesList,
+                this.wpName,
+                80,
+            );
 
-        for (const file of resCSS.filesList) {
-            try {
-                const fileContent = (await Fs.readFile(Path.resolve(this.rootPath, file))).toString();
-                listMedia.push(...this.loader.parseMediaFromCss(fileContent));
-            } catch (error) {
-                console.log('[Error] Media. Failed read file', file);
+            for (const file of resCSS.filesList) {
+                try {
+                    const fileContent = (await Fs.readFile(Path.resolve(this.rootPath, file))).toString();
+                    listMedia.push(...this.loader.parseMediaFromCss(fileContent));
+                } catch (error) {
+                    console.log('[Error] Media. Failed read file', file);
+                }
             }
+
+            listMedia.push(
+                ...exports
+                    .filter(
+                        ({ exports: e }) =>
+                            typeof e === 'string' &&
+                            !e.startsWith('data:image') &&
+                            e.includes(`${this.resourcePath}/media/`),
+                    )
+                    .map(({ exports }) => exports),
+            );
+
+            listMedia.push(...mediaFiles);
         }
 
-        listMedia.push(
-            ...exports
-                .filter(
-                    ({ exports: e }) =>
-                        typeof e === 'string' &&
-                        !e.startsWith('data:image') &&
-                        e.includes(`${this.resourcePath}/media/`),
-                )
-                .map(({ exports }) => exports),
-        );
-
-        listMedia.push(...mediaFiles);
         listMedia.push(...this.staticMedia);
 
         listMedia = listMedia.filter((val, i, self) => self.indexOf(val) === i);
