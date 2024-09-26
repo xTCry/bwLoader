@@ -4,6 +4,7 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=windows,visualstudiocode,node
 
 downloaded/
+extract/
 config.json*
 apps*.json*
 
