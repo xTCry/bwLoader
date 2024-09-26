@@ -41,10 +41,15 @@ export default class CustomLoader extends LoaderClass {
             js,
             css,
             staticName,
+            delimChar,
         } = appDataS.parsed;
 
-        // console.log('appDataS.parsed', appDataS.parsed);
+        // console.log('dbg', appDataS.parsed);
+        // if (!false) {
+        //     process.exit(0);
+        // }
 
+        this.delimChar = delimChar;
         this.staticName = staticName;
         this.staticJS = staticJS;
         this.staticCSS = staticCSS;
@@ -67,7 +72,7 @@ export default class CustomLoader extends LoaderClass {
             // dURL = `${protocol}//${hostname}`;
         }
 
-        this.loader = new AppLoader(dURL, this.resourcePath as string, this.rootPath, this.headers);
+        this.loader = new AppLoader(dURL, this.resourcePath as string, this.rootPath, this.headers, this.delimChar);
         await this.loader.init();
     }
 

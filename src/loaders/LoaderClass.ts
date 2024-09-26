@@ -19,6 +19,7 @@ export default abstract class Loader {
     public useExistsIndexHtml: boolean;
     public headers: any;
 
+    public delimChar?: string;
     public staticName?: string;
     public staticJS: string[] = [];
     public staticCSS: string[] = [];

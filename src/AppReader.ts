@@ -36,6 +36,7 @@ export default class AppReader {
             css: string[];
         };
         staticName: string;
+        delimChar: string;
     } {
         // Get chunks
         let contentWPJ: string = data.js
@@ -60,23 +61,40 @@ export default class AppReader {
 
         const regexTemplate = (type: 'css' | 'js' | 'media') =>
             new RegExp(
-                // `(\\.\\/)?(?<_static>[a-z]+)(\\/${type}\\/)?(?<code>[A-b0-9\\-]+)[\\.-](?<name>[A-b0-9\\-]+(\\.chunk)?)\\.${type}`,
-                `(\\.\\/)?((?<_static>[a-z]+)?\\/)?(?<hasFolder>${type}\\/)?(?<code>[A-b0-9_.\\-]+)[\\.-](?<name>[A-b0-9\\-.]+)\\.${type}`,
+                `` +
+                    `(\\.?\\/)?` +
+                    `((?<_static>[a-z/\\-]+)?\\/)?` +
+                    `(?<hasFolder>${type}\\/)?` +
+                    `(?<code>[@a-z0-9_\\-\\.]+)` +
+                    `(?<delimChar>[\\-\\.])` +
+                    // New generation hash includes more chars
+                    `(?<hash>[a-z0-9_\\-\\.]+)` +
+                    `\\.${type}`,
                 'i',
             );
 
         const regexChunkJS = regexTemplate('js');
         const regexChunkCSS = regexTemplate('css');
 
+        const delimChars: Record<string, number> = {};
+
         // ! bad practice of using this crutch. Remake
         let staticName = '';
         const getMatch = (src: string, regex: RegExp) => {
-            let { _static, hasFolder, code, name } = src.match(regex)?.groups;
-            // console.log('• regexChunkJS', src, ' => ', { code, name, hasFolder, _static });
-            console.log('• SET staticName', staticName);
+            let { _static, hasFolder, code, hash, delimChar } = src.match(regex)?.groups;
+            // console.log('• regexChunkJS', src, ' => ', { code, hash, hasFolder, _static });
+            const _staticName = _static || '';
+            if ((!staticName || _staticName) && staticName !== _staticName) {
+                console.log(`• SET staticName: new=>"${_staticName}"; old=>"${staticName}"`);
+                staticName = _staticName;
+            }
 
-            staticName ||= _static || '';
-            return { code, hasFolder, name, _static };
+            if (!(delimChar in delimChars)) {
+                delimChars[delimChar] = 0;
+            }
+            delimChars[delimChar]++;
+
+            return { code, hasFolder, hash, _static, delimChar };
         };
 
         // Get chunks
@@ -89,12 +107,14 @@ export default class AppReader {
 
         for (let { src } of listJS) {
             if (src.includes('://')) continue;
+            // console.log('src', src, src.match(regexChunkJS)?.groups);
+
             if (!src.includes('.min.') && regexChunkJS.test(src)) {
-                let { code, name, hasFolder, _static } = getMatch(src, regexChunkJS);
+                let { code, hash, hasFolder, _static, delimChar } = getMatch(src, regexChunkJS);
 
                 chunkJSHasFolder = !!hasFolder;
                 if (!_static || staticName) {
-                    chunkJS[code] = `${code}.${name}`;
+                    chunkJS[code] = `${code}${delimChar || '.'}${hash}`;
                 }
             } else {
                 otherJS.push(src);
@@ -110,10 +130,10 @@ export default class AppReader {
         for (let { href } of listCSS) {
             if (href.includes('://')) continue;
             if (regexChunkCSS.test(href)) {
-                let { code, name, hasFolder, _static } = getMatch(href, regexChunkCSS);
+                let { code, hash, hasFolder, _static, delimChar } = getMatch(href, regexChunkCSS);
                 chunkCSSHasFolder = !!hasFolder;
                 if (!_static || staticName) {
-                    chunkCSS[code] = `${code}.${name}`;
+                    chunkCSS[code] = `${code}${delimChar || '.'}${hash}`;
                 }
             } else {
                 otherCSS.push(href);
@@ -127,6 +147,8 @@ export default class AppReader {
         let js = [...Object.values(chunkJS), ...Object.values(chunkJSObj.result)].map((e) => createPath('js', e));
         let css = [...Object.values(chunkCSS), ...Object.values(chunkCSSObj.result)].map((e) => createPath('css', e));
 
+        const delimChar = Object.keys(delimChars).reduce((a, b) => (delimChars[a] > delimChars[b] ? a : b));
+
         return {
             js: otherJS,
             css: otherCSS,
@@ -135,6 +157,7 @@ export default class AppReader {
                 css,
             },
             staticName,
+            delimChar,
         };
     }
 
@@ -170,30 +193,33 @@ export default class AppReader {
             css: [],
         };
 
-        $('script')
-            .get()
-            .forEach((elem) => {
-                let data = elem.attribs['src']
-                    ? {
-                          src: elem.attribs['src'],
-                      }
-                    : elem.children.length > 0
-                    ? {
-                          data: elem.children[0].data,
-                      }
-                    : false;
-                data && output.js.push(data);
-            });
+        for (const elem of $('script').get()) {
+            const data: false | { src: string } | { data: string } = elem.attribs['src']
+                ? { src: elem.attribs['src'] }
+                : elem.children.length > 0
+                ? { data: elem.children[0].data }
+                : false;
+            if (data) {
+                output.js.push(data);
+            }
+        }
 
-        $('link')
+        const hrefs = $('link')
             .get()
-            .filter((e) => e.attribs['href'])
-            .map((e) => e.attribs['href'])
-            .forEach((href) => {
-                if (href.split('.').pop() == 'css' && !output.css.map((e) => e.href).includes(href)) {
+            .map((e) => e.attribs['href'] as string)
+            .filter(Boolean);
+        for (const href of hrefs) {
+            const extension = href.split('.').pop();
+            if (extension == 'css') {
+                if (!output.css.map((e) => e.href).includes(href)) {
                     output.css.push({ href });
                 }
-            });
+            } else if (extension == 'js') {
+                if (!output.js.map((e) => e.src).includes(href)) {
+                    output.js.push({ src: href });
+                }
+            }
+        }
 
         // $('style')
         //     .get()

@@ -28,6 +28,7 @@ export default class AppLoader {
     public resourcePath: string;
     public rootPath: string;
     public headers: any;
+    public delimChar: string | undefined;
 
     public lastCookie: string;
 
@@ -37,11 +38,12 @@ export default class AppLoader {
      * @param resourcePath path to site resources
      * @param rootPath Download folder path
      */
-    constructor(sURL: string, resourcePath: string, rootPath: string, headers: any) {
+    constructor(sURL: string, resourcePath: string, rootPath: string, headers: any, delimChar?: string) {
         this.sURL = sURL;
         this.resourcePath = resourcePath;
         this.rootPath = rootPath;
         this.headers = headers;
+        this.delimChar = delimChar;
     }
 
     public async init() {
@@ -689,8 +691,8 @@ export default class AppLoader {
             staticFolders.map((el) => Fs.readdir(Path.resolve(this.rootPath, this.resourcePath, el))),
         );
 
-        const renamedFilesHistory = {};
-        const newPathsFiles = [];
+        const renamedFilesHistory: Record<string, string> = {};
+        const newPathsFiles: string[] = [];
 
         // Renaming files
         for (let k = 0; k < staticFolders.length; k++) {
@@ -706,7 +708,7 @@ export default class AppLoader {
             for (const _file of filesList) {
                 const filePath = Path.resolve(this.rootPath, this.resourcePath, folder_type, _file);
 
-                const { oldCache, newName } = AppLoader.ChooseName(_file, renamedFilesHistory);
+                const { oldHash, newName } = this.ChooseName(_file, renamedFilesHistory);
                 renamedFilesHistory[_file] = newName;
                 const newFilePath = Path.resolve(outPath, newName);
 
@@ -725,7 +727,7 @@ export default class AppLoader {
 
                 if (k < 2) {
                     newPathsFiles.push(newFilePath);
-                    await Fs.appendFile(newFilePath, `\n/* ${oldCache} */`);
+                    await Fs.appendFile(newFilePath, `\n/* ${oldHash} */`);
                 }
             }
 
@@ -844,15 +846,23 @@ export default class AppLoader {
         });
     }
 
-    public static ChooseName(original: string, history: any, i: number = 0) {
-        const parts = original.split('.');
-        const oldCache = parts[1];
-        parts[1] = i.toString();
-        let newName = parts.join('.');
+    public ChooseName(original: string, history: Record<string, string>, i: number = 0) {
+        // TODO: add analyze delim (example from: 'react-redux-Cd4-7rZy.js') by small chars and not
+
+        const delimChar = this.delimChar || '.';
+        const parts = original.split(delimChar);
+        const hashIndex = delimChar === '.' ? parts.length - 2 : parts.length - 1;
+        const oldHash = parts[hashIndex];
+        parts[hashIndex] = String(i);
+        if (delimChar !== '.') {
+            const old = oldHash.split('.');
+            parts[hashIndex] += '.' + old[old.length - 1];
+        }
+        let newName = parts.join(delimChar || '.');
 
         if (history.hasOwnProperty(newName)) {
             newName = this.ChooseName(original, history, ++i).newName;
         }
-        return { newName, oldCache };
+        return { newName, oldHash };
     }
 }
