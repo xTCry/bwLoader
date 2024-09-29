@@ -18,6 +18,7 @@ export default abstract class Loader {
     public tryAssetManifest: boolean;
     public useExistsIndexHtml: boolean;
     public useWPA: boolean;
+    public useExistsFiles: boolean;
     public headers: Record<string, string>;
 
     public delimChar?: string;
@@ -50,6 +51,7 @@ export default abstract class Loader {
         tryAssetManifest = false,
         useExistsIndexHtml = false,
         useWPA = true,
+        useExistsFiles = false,
         headers = {},
         additionalStatic = {},
     }: {
@@ -64,6 +66,7 @@ export default abstract class Loader {
         tryAssetManifest?: boolean;
         useExistsIndexHtml?: boolean;
         useWPA?: boolean;
+        useExistsFiles?: boolean;
         headers?: Record<string, string>;
         additionalStatic?: { js?: string[]; css?: string[] };
     }) {
@@ -81,6 +84,7 @@ export default abstract class Loader {
         this.tryAssetManifest = tryAssetManifest;
         this.useExistsIndexHtml = useExistsIndexHtml;
         this.useWPA = useWPA;
+        this.useExistsFiles = useExistsFiles;
         this.headers = headers;
         this.additionalStatic = additionalStatic;
 

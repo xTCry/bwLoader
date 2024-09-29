@@ -163,6 +163,10 @@ export const appsSchema = {
                 format: 'Boolean',
                 default: true,
             },
+            useExistsFiles: {
+                format: 'Boolean',
+                default: false,
+            },
             headers: {
                 format: 'Object',
                 default: {},

@@ -24,7 +24,7 @@ export default class CustomLoader extends LoaderClass {
         await this.Step_StartDownload_Media(res);
         await this.Step_ToGit();
 
-        console.log('\n----\nFinish.');
+        console.log('\n----\nFinish.', new Date().toLocaleString('ru'));
     }
 
     protected async Step_LoadApp() {
@@ -73,7 +73,14 @@ export default class CustomLoader extends LoaderClass {
             // dURL = `${protocol}//${hostname}`;
         }
 
-        this.loader = new AppLoader(dURL, this.resourcePath as string, this.rootPath, this.headers, this.delimChar);
+        this.loader = new AppLoader(
+            dURL,
+            this.resourcePath as string,
+            this.rootPath,
+            this.headers,
+            this.delimChar,
+            this.useExistsFiles,
+        );
         await this.loader.init();
     }
 
@@ -81,15 +88,17 @@ export default class CustomLoader extends LoaderClass {
         STEP_ASK && (await Readline.question(`[Step_PrepareArea] Press [Enter] to continue...`));
 
         // Cleaning
-        const existOldFiles = await Fs.readdir(this.rootPath);
-        for (const fileName of existOldFiles) {
-            if (fileName == '.git') {
-                continue;
+        if (!this.useExistsFiles) {
+            const existOldFiles = await Fs.readdir(this.rootPath);
+            for (const fileName of existOldFiles) {
+                if (fileName == '.git') {
+                    continue;
+                }
+                if (this.useExistsIndexHtml && fileName == 'index.html') {
+                    continue;
+                }
+                await Fs.remove(this.rootPath + fileName);
             }
-            if (this.useExistsIndexHtml && fileName == 'index.html') {
-                continue;
-            }
-            await Fs.remove(this.rootPath + fileName);
         }
 
         // TODO: add check `this.useExistsIndexHtml`

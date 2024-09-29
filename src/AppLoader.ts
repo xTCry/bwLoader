@@ -24,12 +24,6 @@ export interface IDownloadProcessResult {
 }
 
 export default class AppLoader {
-    public sURL: string;
-    public resourcePath: string;
-    public rootPath: string;
-    public headers: any;
-    public delimChar: string | undefined;
-
     public lastCookie: string;
 
     /**
@@ -38,13 +32,14 @@ export default class AppLoader {
      * @param resourcePath path to site resources
      * @param rootPath Download folder path
      */
-    constructor(sURL: string, resourcePath: string, rootPath: string, headers: any, delimChar?: string) {
-        this.sURL = sURL;
-        this.resourcePath = resourcePath;
-        this.rootPath = rootPath;
-        this.headers = headers;
-        this.delimChar = delimChar;
-    }
+    constructor(
+        public sURL: string,
+        public resourcePath: string,
+        public rootPath: string,
+        public headers: Record<string, string>,
+        public delimChar?: string,
+        public useExistsFiles?: boolean,
+    ) {}
 
     public async init() {
         await Fs.ensureDir(Path.join(this.rootPath, this.resourcePath));
@@ -281,15 +276,17 @@ export default class AppLoader {
         const filesCount = files.length;
         const existFiles = await Fs.readdir(Path.resolve(this.rootPath, subPathForExistFiles));
 
-        // for fast test
-        // spinnerFile.stop();
-        // return {
-        //     downloadedCount: existFiles.length,
-        //     count: existFiles.length,
-        //     skippedCount: 0,
-        //     filesList: existFiles.map((f) => Path.join('./', subPathForExistFiles, f)),
-        //     ripFiles: [],
-        // };
+        // * for fast test
+        if (this.useExistsFiles) {
+            spinnerFile.stop();
+            return {
+                downloadedCount: existFiles.length,
+                count: existFiles.length,
+                skippedCount: 0,
+                filesList: existFiles.map((f) => Path.join('./', subPathForExistFiles, f)),
+                ripFiles: [],
+            };
+        }
 
         await sleep(3);
 
@@ -433,6 +430,7 @@ export default class AppLoader {
             await Fs.writeFile(fileFullPath, beautifiedContent);
             i++;
         }
+        spinnerBeautify.prefixText = gradient.vice('[ 100% ]');
         spinnerBeautify.succeed(`All ${filesCount} files beautify`);
     }
 
