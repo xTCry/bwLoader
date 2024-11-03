@@ -1,6 +1,6 @@
 import Fs from 'fs-extra';
 import Path from 'path';
-import Axios, { AxiosResponse } from 'axios';
+import Axios, { AxiosError, AxiosResponse } from 'axios';
 
 import { js as beautifyJS, css as beautifyCSS } from 'js-beautify';
 import jsnice from 'jsnice';
@@ -14,6 +14,7 @@ const spinnerFile = ora(),
     spinnerBeautify = ora({
         spinner: 'moon',
     });
+const spinnerDownloader = ora();
 
 export interface IDownloadProcessResult {
     downloadedCount: number;
@@ -77,18 +78,39 @@ export default class AppLoader {
         const path = Path.resolve(Path.join(rootPath, filePath));
 
         url = encodeURI(url);
+        const filename = filePath.split('/').pop();
 
         let response: AxiosResponse;
+        let lastError: AxiosError | undefined;
         let attemptsCount = attempts;
         try {
+            const startTime = Date.now();
+
+            spinnerDownloader.indent = 70;
+            spinnerDownloader.color = 'yellow';
+            spinnerDownloader.start(`Load file... (${gradient.pastel(filename)})`);
+
             do {
+                spinnerDownloader.text = `${Math.round((Date.now() - startTime) / 1e3)} (${gradient.pastel(filename)})`;
+                spinnerDownloader.prefixText = gradient.vice(`[ ${attempts - attemptsCount + 1}/${attempts} ]`);
+
+                const CancelToken = Axios.CancelToken;
+                const source = CancelToken.source();
+
+                const timeout = 10e3;
+                const cancelerTimer = setTimeout(() => {
+                    console.log(`[Timeout] Cancel load file (${gradient.pastel(filename)})`);
+                    source.cancel('Timeout');
+                }, timeout);
+
                 try {
                     response = await Axios({
+                        cancelToken: source.token,
                         url,
                         method: 'GET',
                         responseType: 'stream',
                         maxRedirects: 10,
-                        timeout: 10e3,
+                        timeout,
                         headers: {
                             ...(true && { referer: combineURLs(this.sURL, 'worker.js') }),
                             ...this.headers,
@@ -100,21 +122,37 @@ export default class AppLoader {
                     });
                     attemptsCount = 0;
                 } catch (err) {
+                    if (err) {
+                        lastError = err;
+                    }
+                    if (Axios.isCancel(err) || err.response?.status === 504) {
+                        attemptsCount -= 0.7;
+                        continue;
+                    }
+
                     --attemptsCount;
                     if (attemptsCount === 0 || err.response?.status === 404) {
                         throw err;
                     }
+                } finally {
+                    clearTimeout(cancelerTimer);
                 }
                 await sleep(500);
             } while (attemptsCount > 0);
         } catch (err) {
-            // if (err) console.error(err);
-
             if (err.response?.status === 404) {
                 // console.log('Not found');
             }
+            spinnerDownloader.fail(`Download file Failed (${gradient.pastel(filename)})\r`);
             return Promise.reject(err.response);
         }
+
+        if (!response && lastError) {
+            spinnerDownloader.fail(`Download file Failed (${gradient.pastel(filename)})\r`);
+            return Promise.reject(lastError.response);
+        }
+
+        spinnerDownloader.succeed(`Download file Done (${gradient.pastel(filename)})\r`);
 
         const writer = Fs.createWriteStream(path);
         response.data.pipe(writer);
