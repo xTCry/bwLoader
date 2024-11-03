@@ -272,9 +272,11 @@ export default class CustomLoader extends LoaderClass {
     }
 
     protected async tryGetWPName() {
-        if (this.wpName) {
+        if (!this.useWPA || this.wpName) {
             return;
         }
+        console.log('Try Get WPName...');
+
         try {
             // const wpRegex = /.?(?:window\.(.*)) ?= ?window/i;
             // const wpRegex = /.?(?:(this|window)\.(.*)) ?= ?(this|window)\.(.*)\|\|\[\]/i;
