@@ -20,6 +20,9 @@ export default class AppReader {
         }
 
         let data = AppReader.getResources(html);
+        if (!data.css.length && !data.js.length) {
+            throw new Error('Wrong get resources (empty)');
+        }
         let res = AppReader.parseResources(data);
 
         return {
@@ -147,7 +150,11 @@ export default class AppReader {
         let js = [...Object.values(chunkJS), ...Object.values(chunkJSObj.result)].map((e) => createPath('js', e));
         let css = [...Object.values(chunkCSS), ...Object.values(chunkCSSObj.result)].map((e) => createPath('css', e));
 
-        const delimChar = Object.keys(delimChars).reduce((a, b) => (delimChars[a] > delimChars[b] ? a : b));
+        let delimChar: string | undefined;
+        const delimCharsAr = Object.keys(delimChars);
+        if (delimCharsAr.length > 0) {
+            delimChar = delimCharsAr.reduce((a, b) => (delimChars[a] > delimChars[b] ? a : b));
+        }
 
         return {
             js: otherJS,
@@ -167,7 +174,7 @@ export default class AppReader {
         try {
             do {
                 try {
-                    response = axios(url, {
+                    response = await axios(url, {
                         timeout: 10e3,
                         maxRedirects: 10,
                         headers: {
