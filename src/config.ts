@@ -80,7 +80,7 @@ export const configSchema = {
             default: '',
             env: 'GIT_ORG',
             format(val) {
-                if (!/^[A-z0-9]+$/.test(val) && forceGIT) {
+                if (!/^[A-Za-z0-9]+$/.test(val) && forceGIT) {
                     throw new Error('Wrong organization name');
                 }
             },

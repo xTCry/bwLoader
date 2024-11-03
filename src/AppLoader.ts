@@ -567,8 +567,8 @@ export default class AppLoader {
 
                     path = path
                         .replace(/:/g, '_')
-                        .replace(/((\.[A-z0-9]+)\?([A-z0-9]+))/i, '__$3$2') // Fix (`/About.vue?6dba`  to  `/About__6dba.vue`)
-                        // .replace(/([A-z]{4,}\s?)([\/\^\.\*\$]+)/ig, "$1__")
+                        .replace(/((\.[a-z0-9]+)\?([a-z0-9]+))/i, '__$3$2') // Fix (`/About.vue?6dba`  to  `/About__6dba.vue`)
+                        // .replace(/([a-z]{4,}\s?)([\/\^\.\*\$]+)/ig, "$1__")
                         .replace(/(lazy|locale) ([\/\^\.\*\$\\]+)/gi, '$1__')
                         .replace(/((\.\.\/){2}|(\.\.\\){2})/g, './');
 
